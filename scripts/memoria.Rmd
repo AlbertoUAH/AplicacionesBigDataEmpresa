@@ -1,0 +1,557 @@
+---
+title: "Aplicaciones del Big Data en la empresa"
+author: "Fernández Hernández, Alberto"
+date: "15/03/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+__Nota__: para la realización de la práctica, y a lo largo del concurso, __se ha tomado como base el _score_ obtenido en el modelo 2 realizado en clase:__
+1. Selección de variables numéricas y categóricas (con al menos dos categorías y menos de 1000), además de descartar las variables duplicadas _payment_type_ y _status_group_, obteniendo la siguiente puntuación:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = 0.8168687, 
+                        "Data Submission" = 0.8128,
+                        row.names = c("Num + Cat (> 1 & < 1000) sin duplicados")),
+             align = 'c')
+```
+
+# 1. Carga de datos y librerías
+
+Para la realización de la práctica, los ficheros utilizados son los siguientes:
+
+1. _train_values.csv_: __fichero con el conjunto de variables y observaciones con los que entrenar el modelo__.
+
+2. _train_labels.csv_: __fichero con las variables objetivo de cada una de las observaciones en _train_values.csv___:
+
+* 2.1 _functional_
+
+* 2.2 _non functional_
+
+* 2.3 _functional needs repair_
+
+3. _test_values.csv_: __fichero de prueba con el que maximizar las predicciones obtenidas con el correspondiente modelo__
+
+En relación con las librerías empleadas, debemos destacar las siguientes:
+
+```{r}
+#--- Librerias empleadas
+suppressPackageStartupMessages({
+  library(dplyr)          # Manipulacion de datos 
+  library(data.table)     # Lectura y escritura de ficheros
+  library(ggplot2)        # Representacion grafica
+  library(inspectdf)      # EDAs automaticos
+  library(ranger)         # randomForest (+ rapido que caret)
+  library(forcats)        # Tratamiento de variables categoricas
+  library(tictoc)         # Calculo de tiempo de ejecucion
+  library(missRanger)     # Imputacion de valores NA
+  library(knitr)          # Generacion de informes (formateo de tablas)
+  library(gmt)            # Calculo de la distancia geografica
+})
+```
+```{r}
+#--- Carga de ficheros train y test
+dattrainOr    <- fread(file = "../data/train_values.csv", data.table = FALSE )
+dattrainLabOr <- fread(file = "../data/train_labels.csv", data.table = FALSE )
+dattestOr     <- fread(file = "../data/test_values.csv", data.table = FALSE  )
+```
+
+# 2. Desarrollo durante el concurso
+
+## 2.1 Análisis de variables existentes
+En primer lugar, en base a las funciones disponibles en la librería _inspectdf_, __se extrajo un esquema inicial de las variables existentes en el conjunto de datos y su correspondiente tipo__:
+
+```{r, fig.align='center'}
+# Analizamos el tipo de dato en cada variable
+show_plot(inspect_types(dattrainOr))
+```
+
+1. __27 variables variables de tipo carácter (categóricas)__
+2. __10 variables numéricas (entre _integer_ y _numeric_)__
+3. __2 variables lógicas__
+4. __1 variable tipo fecha__
+
+Por tanto, del mismo modo que lo realizado en el modelo 2:
+
+1. __Conservamos únicamente las variables numéricas y categóricas con más de uno y menos de 100 valores diferentes__:
+
+```{r}
+#-- Variables categoricas
+datcat_df <- dattrainOr %>% select(where(is.character))
+```
+
+```{r}
+# Mediante un bucle for, 
+numlev_df <- data.frame(
+                          "vars" = names(datcat_df),
+                           "levels" = apply(datcat_df, 
+                                  2, 
+                                  function(x) length(unique(x)))
+                          
+                        )
+# Eliminamos los nombres de fila
+rownames(numlev_df) <- NULL
+
+kable(numlev_df %>% arrange(levels))
+```
+
+Por tanto, escogemos desde la variable _source_class_ hasta _lga_:
+
+```{r}
+#-- Conservamos variables con categorias > 1 & < 1000
+vars_gd <- numlev_df %>%
+  filter(levels < 1000, levels > 1) %>% 
+  select(vars)
+datcat_gd <- datcat_df[ , vars_gd$vars]
+```
+
+```{r}
+#-- Variables numericas
+datnum_df <- dattrainOr %>% select(where(is.numeric))
+```
+
+```{r}
+# Unificamos ambos tipos de variables...
+datnumcat_df <- cbind(datnum_df, datcat_gd)
+```
+
+```{r}
+# ...Como tambien la variable objetivo
+dattrainOrlab <- merge(
+  datnumcat_df, dattrainLabOr,
+  by.x = c('id'), by.y = c('id'),
+  sort = FALSE
+)
+```
+
+2. __Eliminamos variables con información duplicada__, concretamente _payment_type_ y _quantity_group_:
+
+```{r}
+dattrainOrlab$payment_type <- NULL
+dattrainOrlab$quantity_group <- NULL
+```
+
+## 2.1 Tratamiento de valores anómalos
+
+Una vez pre-procesado el conjunto de entrenamiento, una de las primeras ideas que tuvo en cuenta fue __el tratamiento de valores anómalos, concretamente a cero, de determinadas variables__, anotados durante la primera fase de análisis exploratorio realizada en clase:
+
+1. _construction_year_
+
+2. _gps_height_: en el caso de la altura GPS, __no se han considerado los valores negativos como valores anómales, principalmente porque no existe una elevada acumulación de valores negativos de altura (principal sospecha de que puede tratarse de un valor anómalo), además de que, traslando el problema a un entorno real es posible la existencia de alturas negativas (regiones situadas por debajo del nivel del mar).
+
+3. _longitude_
+
+Sobre dichas variables podemos observar en los siguientes histogramas una elevada concentración de valores a cero:
+
+```{r, fig.align = 'center', fig.width=8}
+# Graficos de distribucion
+# Histograms for numeric columns
+show_plot(
+  inspect_num(dattrainOrlab[c("construction_year",
+                              "gps_height",
+                              "longitude")])
+  
+)
+```
+
+Por tanto, para eliminar y posteriormente imputar dichos ceros, __haremos uso de una función denominada impute_zeros__, la cual permite establecer inicialmente a NA los valores a cero, así como su posterior imputación haciendo uso de la librería _missRanger_:
+
+```{r}
+# Funcion para la imputacion de ceros con missRanger
+impute_zeros <- function(data, column, k, num_trees, impute = TRUE, seed = 1234) {
+  new_feature <- paste0("fe_", column)
+  
+  data[, new_feature] <- data[, column]
+  data[, new_feature] <- ifelse( 
+                            data[, new_feature] == 0, 
+                            NA, 
+                            data[, new_feature]
+  )
+  original_data       <- data[, new_feature]
+  
+  data[, column]      <- NULL
+  
+  if (impute == TRUE) {
+    data_imp <- missRanger(
+                            data,  
+                            pmm.k = k,
+                            num.trees = num_trees,
+                            seed = seed
+                           )
+    # Finalmente, creamos una nueva columna binaria
+    # 1 = el valor era NA; 0 = No
+    new_feature_na      <- paste0("fe_", column, "_na")
+    data_imp[, new_feature_na] <- ifelse(
+                                    is.na(original_data),
+                                    1,
+                                    0
+    )
+  }
+  return(data_imp)
+}
+```
+
+Una vez definida la funcion, imputamos cada una de las columnas anteriores, __no sin antes eliminar la columna _status_group_, con el objetivo de evitar que la imputación también dependa del valor de la variable objetivo__. Además, en lugar de utilizar k = 3 como número de vecinos, durante el concurso se aumentó dicho valor a 5:
+
+```{r}
+# Almacenamos en un vector la variable objetivo
+status_group_vector        <- dattrainOrlab$status_group
+dattrainOrlab$status_group <- NULL
+```
+```{r, echo = FALSE}
+#--- construction_year
+# 
+dattrainOrlab_imp <- impute_zeros(dattrainOrlab,
+                                  column = "construction_year",
+                                  k = 5,
+                                  num_trees = 100)
+```
+
+```{r}
+#--- gps_heigth
+dattrainOrlab_imp <- impute_zeros(dattrainOrlab_imp,
+                                  column = "gps_height",
+                                  k = 5,
+                                  num_trees = 100)
+```
+
+```{r}
+#--- longitude
+dattrainOrlab_imp <- impute_zeros(dattrainOrlab_imp,
+                                  column = "longitude",
+                                  k = 5,
+                                  num_trees = 100)
+```
+
+```{r}
+#--- Una vez imputado, añadimos nuevamente la variable objetivo
+dattrainOrlab_imp$status_group <- status_group_vector
+dattrainOrlab_imp$status_group <- as.factor(dattrainOrlab_imp$status_group)
+```
+
+En relación con el conjunto _test_, dado que no debemos aplicar la imputación de los valores _missing_ a partir del propio conjunto _test_, a cada valor NA (es decir, igual a cero), se tomó la decisión de __imputarlo por un valor muy diferente al resto de la población__, concretamente 99999, así como añadir una columna binaria adicional que indice si el valor imputado era o no un valor _missing_:
+
+```{r}
+dattestOr_imp <- dattestOr
+
+for(column in c("construction_year", "gps_height", "longitude")) {
+  new_feature <- paste0("fe_", column)
+  dattestOr_imp[, new_feature] <- ifelse(
+                                          dattestOr_imp[, column] == 0,
+                                          99999,
+                                          dattestOr_imp[, column]
+  )
+  dattestOr_imp[, column] <- NULL
+  
+  new_feature_na <- paste0("fe_", column, "_na")
+  dattestOr_imp[, new_feature_na] <- ifelse(
+                                          dattestOr_imp[, new_feature] == 99999,
+                                          1,
+                                          0
+  ) 
+}
+```
+
+Una vez imputadas las variables, por medio de la función _ranger_ creamos un primer modelo de _Random Forest_:
+
+```{r}
+# Funcion que devuelve un modelo Random Forest entrenado
+fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed = 1234) {
+  tic()
+  my_model <- ranger( 
+    formula, 
+    importance = 'impurity',
+    data       = data,
+    num.trees = num_trees,
+    mtry = mtry,
+    verbose = FALSE,
+    seed = seed
+  )
+  # **Estimacion** del error / acierto **esperado**
+  success <- 1 - my_model$prediction.error
+  print(success)
+  toc()
+  
+  return(my_model)
+}
+```
+
+```{r}
+#--- Funcion para pintar importancia de variables (ademas de guardar el grafico)
+save_importance_ggplot <- function(model, path) {
+  impor_df <- as.data.frame(model$variable.importance)
+  names(impor_df)[1] <- c('Importance')
+  impor_df$vars <- rownames(impor_df)
+  rownames(impor_df) <- NULL
+  
+  ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+    geom_col(group = 1, fill = "darkred") +
+    coord_flip() + 
+    labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
+    theme_bw()
+  ggsave(path)
+}
+```
+
+```{r}
+formula    <- as.formula('status_group~.')
+
+my_model_1 <- fit_random_forest(formula, dattrainOrlab_imp)
+```
+
+Tras crear el modelo, guardamos el gráfico con la importancia de cada una de las variables:
+
+```{r}
+save_importance_ggplot(my_model_1, '../charts/01_num_cat_menos1000_todo_imp.png')
+```
+
+A continuación, realizamos la predicción de los valores _test_. Con el objetivo de evitar redundancia de código, creamos una función que devuelva un _data.frame_ con las predicciones asociados a cada _id_ correspondiente:
+
+```{r}
+#--- Funcion para realizar prediccion sobre el modelo pasado como parametro
+make_predictions <- function(model, test_data) {
+  # Prediccion
+  my_pred <- predict(model, test_data)
+  
+  # Submission
+  my_sub <- data.table(
+    id = test_data[, "id"],
+    status_group = my_pred$predictions
+  )
+  
+  return(my_sub)
+}
+```
+```{r}
+my_sub_1 <- make_predictions(my_model_1, dattestOr_imp)
+# guardo submission
+fwrite(my_sub_1, file = "../submissions/01_num_cat_menos1000_todo_imp.csv")
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178), 
+                        "Data Submission" = c(0.8128, 0.8096),
+            row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
+            "Num + Cat (> 1 & < 1000) sin duplicados imp")),
+align = 'c')
+             
+```
+
+## 2.2 Creación de nuevas variables
+En vistas al menor _accuracy_ obtenido en el apartado anterior, decidí no imputar dichas variables y buscar una alternativa a la mejora del modelo. Para ello, se recurrió a la creación de nuevas variables:
+
+1. _construction_year_: __antigüedad del pozo__, restando la fecha más reciente (2014) a cada uno de los valores.
+
+2. _longitude_ y _latitude_: __distancia geográfica__. En lugar de la raíz cuadrada de la suma de las coordenadas al cuadrado, _R_ dispone de un paquete denominado _gmt_ con el que calcular la distancia geográfica de cada bomba al punto de referencia (0,0), de forma que podría obtenerse unos valores más precisos que en el caso anterior.
+
+3. _amount_tsh_ y _population_: analizando el gráfico de importancia del primer modelo, se comprobó que variables como la población o la cantidad de agua disponible no son especialmente relevantes:
+
+```{r, echo=FALSE, fig.cap="Importancia variables modelo 01", out.width = '100%'}
+knitr::include_graphics("../charts/01_num_cat_menos1000_todo_imp.png")
+```
+
+Como consecuencia, se propuso la creación de una nueva variable, basada en la __cantidad de agua que habría disponible por persona en cada pozo__, dividiendo la cantidad total de agua en cada observación ( _amount_tsh_ ) entre el total de población.
+
+```{r}
+#---- Feature Engineering
+#---  Creacion de nuevas variables
+#--   Antiguedad del pozo (2014 - fecha)
+# Train
+dattrainOrlab$fe_cyear <- 2014 - dattrainOrlab$construction_year
+
+# Test
+dattestOr$fe_cyear <- 2014 - dattestOr$construction_year
+```
+```{r}
+#--   Distancia geografica al punto (0,0)
+# geodist (latitud_origen, longitud_origen, latitud_destino, longitud_destino)
+# Por defecto, las unidades estan expresadas en kilometros
+# Train
+dattrainOrlab$fe_dist <- geodist(dattrainOrlab$latitude, dattrainOrlab$longitude, 0, 0)
+
+# Test
+dattestOr$fe_dist <- geodist(dattestOr$latitude, dattestOr$longitude, 0, 0)
+```
+```{r}
+#--  Cantidad de agua disponible por persona
+# Train
+dattrainOrlab$fe_cant_agua <- ifelse(dattrainOrlab$population == 0,
+                                     0,
+                                    round(dattrainOrlab$amount_tsh /
+                                            dattrainOrlab$population, 3)
+                              )
+
+# Test
+dattestOr$fe_cant_agua <- ifelse(dattestOr$population == 0,
+                                 0,
+                                round(dattestOr$amount_tsh /
+                                      dattestOr$population, 3)
+                              )
+```
+
+Una vez creadas las variables, entrenamos nuevamente el modelo _random forest_:
+
+```{r}
+# Inclimos la variable objetivo
+dattrainOrlab$status_group <- status_group_vector
+dattrainOrlab$status_group <- as.factor(dattrainOrlab$status_group)
+
+my_model_2 <- fit_random_forest(formula, dattrainOrlab)
+```
+
+A simple vista, el valor obtenido en el conjunto de entrenamiento mejora de 0.810 en el caso anterior a 0.812. Veamos el resultado obtenido en la _submission_:
+
+```{r}
+#- Guardamos el grafico con la importancia del modelo
+save_importance_ggplot(my_model_2, '../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png')
+```
+
+```{r}
+my_sub_2 <- make_predictions(my_model_2, dattestOr)
+# guardo submission
+fwrite(my_sub_2, file = "../submissions/02_num_cat_menos1000_fe_cyear_dist_cant_agua.csv")
+```
+
+```{r}
+knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8122391), 
+                        "Data Submission" = c(0.8128, 0.8096, 0.8174),
+            row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
+            "Num + Cat (> 1 & < 1000) sin duplicados imp",
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua")),
+align = 'c')
+```
+
+## 2.3 Inclusión de _date_recorded_
+
+Con la inclusión de las nuevas variables, el resultado mejoró con respecto a los dos _submission_ anteriores, por lo que decidió mantener cada una ellas. En relación con la tercera prueba, se tomó la decisión de incluir una variable adicional que hasta el momento no se había tenido en cuenta: _date_recorded_. Dado que la variable se encuentra en formato fecha, en lugar de incluir directamente el campo se dividió en un total de tres nuevas variables:
+
+1. __Año__
+2. __Mes__
+3. __Diferencia entre la fecha de observación y la fecha de construcción de la bomba__, de forma que se pueda tener una columna que indique su antigüedad en el momento en el que se insertó la fila:
+
+```{r}
+#-- date_recorded --> año
+#   Train
+dattrainOrlab$fe_dr_year <- year(dattrainOr$date_recorded)
+
+#   Test
+dattestOr$fe_dr_year     <- year(dattestOr$date_recorded)
+```
+
+```{r}
+#-- date_recorded --> mes
+#   Train
+dattrainOrlab$fe_dr_month <- month(dattrainOr$date_recorded)
+
+#   Test
+dattestOr$fe_dr_month     <- month(dattestOr$date_recorded)
+```
+
+```{r}
+#-- date_recorded --> año date_recorded - año construction_date
+#   Train
+dattrainOrlab$fe_dr_year <- dattrainOrlab$fe_dr_year - dattrainOrlab$construction_year
+
+#   Test
+dattestOr$fe_dr_year     <- abs(dattestOr$fe_dr_year - dattestOr$construction_year)
+```
+
+Nuevamente, tras crear las variables entrenamos el modelo _random forest_:
+
+```{r}
+#-- Modelo 3
+my_model_3 <- fit_random_forest(formula, dattrainOrlab)
+```
+```{r}
+#- Guardamos el grafico con la importancia del modelo
+save_importance_ggplot(my_model_3, '../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png')
+```
+
+```{r}
+my_sub_3 <- make_predictions(my_model_3, dattestOr)
+# guardo submission
+fwrite(my_sub_3, 
+    file = "../submissions/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.csv")
+```
+
+```{r}
+knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8122391, 0.8124579), 
+                        "Data Submission" = c(0.8128, 0.8096, 0.8174, 0.8176),
+            row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
+            "Num + Cat (> 1 & < 1000) sin duplicados imp",
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + abs(dr_year -cyear)")),
+align = 'c')
+```
+
+## 2.4 Tuneo modelo final
+
+Como se ha podido comprobar en la tabla anterior, aumenta ligeramente el valor de __accuracy__ al añadir las dos nuevas variables. Por tanto, como última _submission realizada en clase_ se realizó un tuneo de hiperparámetros del modelo _random forest_, empleando todos los parámetros utilizados hasta el momento.
+
+```{r}
+my_ntree <- c(500, 600, 700, 800)
+my_mtry  <- c(5, 6, 7, 10)
+my_pars  <- expand.grid(my_ntree, my_mtry)
+names(my_pars) <- c('myntree', 'mymtry')
+my_pars$accuracy <- 0
+
+for (i in 1:nrow(my_pars)) {
+   my_model_tuning <- fit_random_forest(formula, dattrainOrlab,
+                                        num_trees = my_pars$myntree[[i]],
+                                        mtry = my_pars$mymtry[i])
+   my_pars$accuracy[i] <- (1 - my_model_tuning$prediction.error)
+}
+```
+
+Tras realizar el tuneo de hiperparámetros, comprobamos qué modelo obtiene un mayor _accuracy_:
+
+```{r}
+my_pars[which(my_pars$accuracy == max(my_pars$accuracy)), ]
+```
+
+```{r}
+#-- Entrenamos el modelo con 800 arboles y mtry = 7
+my_model_4 <- fit_random_forest(formula, dattrainOrlab, num_trees = 800, mtry = 7)
+```
+
+Finalmente, guardamos el gráfico de importancias y exportamos las predicciones obtenidas:
+
+```{r}
+#- Guardamos el grafico con la importancia del modelo
+save_importance_ggplot(my_model_4, '../charts/04_num_cat_menos1000_fe_tunned.png')
+```
+
+```{r}
+my_sub_4 <- make_predictions(my_model_4, dattestOr)
+# guardo submission
+fwrite(my_sub_4, 
+    file = "../submissions/04_num_cat_menos1000_fe_tunned.csv")
+```
+
+```{r}
+knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8122391, 0.8124579, 0.8122727), 
+                        "Data Submission" = c(0.8128, 0.8096, 0.8174, 0.8176, 0.8168),
+            row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
+            "Num + Cat (> 1 & < 1000) sin duplicados imp",
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + abs(dr_year -cyear)", "Num + Cat (> 1 & < 1000) fe + tunning")),
+align = 'c')
+```
+
+# 3. Mejora del modelo tras el concurso
+
+Tras el concurso, por cuenta propia se ha decidido partir del mejor modelo obtenido hasta el momento, correspondiente con:
+
+1. Variables numéricas
+2. Variables categóricas
+3. _Feature Engineering_: _cyear_, _dist_, _cant_agua_, _dr_year_, _dr_month_ y _dr_year_ - _cyear_
+
+Sobre dicho modelo, se ha obtenido la puntuación de 0.8124579 en el conjunto _train_ y 0.8176 en el conjunto de prueba, por lo que el objetivo consistirá en superar dicho _accuracy_, junto el mejor _accuracy_ alcanzado en el grupo en conjunto (0.8180).
+
+
+
