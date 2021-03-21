@@ -1,8 +1,8 @@
 #-------------------
 # Autor: Alberto Fernandez
 # Fecha: 2021_03_17
-# Inputs: Datos entrada bombas (mejor resultado concurso)
-# Salida: Datos con nuevas variables (incluyendo categorias < 2100) + lumping
+# Inputs: Datos 02_fe_menos_2100_lumping_mediana.R
+# Salida: Datos con nuevas variables (incluyendo categorias < 2100 depuradas) + lumping
 #         1. Realizar una transformacion lumping sobre las variables funder y ward (sobre el tercer cuartil de las proporciones)
 # Comentarios: 
 #-------------------
@@ -109,25 +109,16 @@ my_model_7 <- fit_random_forest(formula,
 
 my_sub_7 <- make_predictions(my_model_7, test)
 # guardo submission
-fwrite(my_sub_7, file = "./submissions/07_05_lumping_sobre_funder_ward_tercer_cuartil.csv")
+fwrite(my_sub_7, file = "./submissions/07_06_lumping_sobre_funder_ward_tercer_cuartil.csv")
+# 0.8203
 
-knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8122391, 0.8124579, 0.8122727, 0.8149832, 0.8159764, 0.8146633), 
-                        "Data Submission" = c(0.8128, 0.8096, 0.8174, 0.8176, 0.8168, 0.8197, 0.8213, 0.8203),
-                        row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                                      "Num + Cat (> 1 & < 1000) sin duplicados imp",
-                                      "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
-                                      "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + abs(dr_year -cyear)", "Num + Cat (> 1 & < 1000) fe + tunning",
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8213, 0.8203),
+                        row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)")),
              align = 'c')
 
-#-- Conclusion: aplicamos unicamente el lumping sobre la mediana de fe_funder y fe_ward
-
-
-
-
-
-
-
+#-- Conclusion: aplicamos unicamente el lumping sobre la mediana de fe_funder y fe_ward (con el tercer cuartil la accuracy se reduce)
 

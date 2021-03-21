@@ -85,13 +85,10 @@ my_model_5 <- fit_random_forest(formula,
 my_sub_5 <- make_predictions(my_model_5, test)
 # guardo submission
 fwrite(my_sub_5, file = "./submissions/05_04_mas_fe_inst_funder_scheme_ward.csv")
-
-knitr::kable(data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8122391, 0.8124579, 0.8122727, 0.8149832), 
-                        "Data Submission" = c(0.8128, 0.8096, 0.8174, 0.8176, 0.8168, 0.8197),
-                        row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                                      "Num + Cat (> 1 & < 1000) sin duplicados imp",
-                                      "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
-                                      "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + abs(dr_year -cyear)", "Num + Cat (> 1 & < 1000) fe + tunning",
+# 0.8197
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832), 
+                        "Data Submission" = c(0.8180, 0.8197),
+                        row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward")),
              align = 'c')
 
