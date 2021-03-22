@@ -1,0 +1,209 @@
+#-------------------
+# Autor: Alberto Fernandez
+# Fecha: 2021_03_21
+# Inputs: Datos 05_fe_menos_2100_lumping_mediana_freq_abs.R
+# Salida: Datos con nuevas variables (incluyendo categorias < 2100) + lumping + transformacion fe_funder, fe_ward y lga
+#        
+# Comentarios: 
+#-------------------
+
+#--- Cargo librerías
+suppressPackageStartupMessages({
+  library(dplyr)                # Manipulacion de datos 
+  library(data.table)           # Leer y procesar ultra-rapido
+  library(ggplot2)              # La librería grafica
+  library(inspectdf)            # EDAs automaticos
+  library(ranger)               # Fast randomForest
+  library(forcats)              # Tratar variables categoricas
+  library(stringi)              # Tratamiento cadenas caracteres
+  library(tictoc)               # Calcular tiempos
+  library(FeatureHashing)       # Feature Hashing
+  library(missRanger)           # Imputacion missings
+  
+  source("scripts/funciones.R") # Funciones propias
+})
+
+#-- Leo ficheros
+dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = FALSE )
+dattrainOr       <- fread(file = "./data/train_values.csv", data.table = FALSE)
+dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = FALSE  )
+
+vector_status_group <- dattrainOrlab$status_group
+dattrainOrlab$status_group <- NULL
+
+#-- Nos traemos funder, ward (menos de 2100 categorias)
+dattrainOrlab$funder <- dattrainOr$funder
+dattrainOrlab$ward <- dattrainOr$ward
+
+#-- Unimos train y test
+columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]
+datcompleto <- rbind(dattrainOrlab, dattestOr[, columnas_test])
+
+# El conjunto test empieza a partir de la 59401
+fila_test <- which(datcompleto$id == 50785)
+
+#--- Niveles de las categoricas.
+datcat_df <- as.data.frame(datcompleto %>% select(where(is.character)))
+
+numlev_df <- data.frame()
+for (i in 1:ncol(datcat_df)) {
+  col_tmp <- datcat_df[, i]
+  num_lev <- length(unique(col_tmp))
+  numlev_df[i, 1] <- names(datcat_df)[i]
+  numlev_df[i, 2] <- num_lev
+  print(numlev_df)
+}
+names(numlev_df) <- c('vars', 'levels')
+numlev_df %>% arrange(levels)
+
+#-- ¿Y si corregimos todas las variables categoricas?
+datcompleto <- as.data.table(datcompleto)
+
+fe_cat <- data.table()
+for (column in numlev_df$vars) {
+  new_column <- paste0("fe_", column)
+  fe_cat[, new_column] <- sapply(datcompleto[, ..column], clean_text)
+}
+
+numlev_dt <- data.frame()
+for (i in 1:ncol(fe_cat)) {
+  col_tmp <- fe_cat[, ..i]
+  num_lev <- nrow(unique(col_tmp))
+  numlev_dt[i, 1] <- names(fe_cat)[i]
+  numlev_dt[i, 2] <- num_lev
+  print(numlev_dt)
+}
+names(numlev_dt) <- c('vars', 'levels')
+numlev_dt %>% arrange(levels)
+
+
+# ¿Categorias con muchas categorias pero algunas presentan pocas observaciones?
+datcompleto[, fe_funder := clean_text(funder)][, fe_ward := clean_text(ward)]
+
+#-- fe_funder
+#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 2e-05)
+summary(c(prop.table(table(datcompleto[, fe_funder]))))
+datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 2e-05, other_level = "other")]
+datcompleto$fe_funder <- as.character(datcompleto$fe_funder)
+
+datcompleto[, funder := NULL]
+
+#-- fe_ward
+#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 4e-04)
+summary(c(prop.table(table(datcompleto[, fe_ward]))))
+datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 4e-04, other_level = "other")]
+datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
+
+datcompleto[, ward := NULL]
+
+
+#-- Imputacion de las variables categoricas por sus frecuencias absolutas
+cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
+
+#   Antes de imputar
+freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
+
+for (cat_col in cat_cols) {
+  datcompleto[, paste0("fe_", cat_col) := as.numeric(.N), by = cat_col]
+}
+names(datcompleto) <- stri_replace_all_fixed(names(datcompleto),
+                                             "fe_fe_", "fe_")
+
+for (cat_col in cat_cols) {
+  datcompleto[, paste(cat_col) := NULL]
+}
+new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
+
+#-- Solo cambian funder, ward y lga en relacion al numero de categorias
+freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
+
+#-- En el concurso la imputacion mediante missRanger separando train y test no obtuvo buenos resultados
+#   ¿Y si aplicamos missRanger sobre el conjunto train+test?
+dat_bin_na <- data.table()
+for (column in c("construction_year", "gps_height", "longitude")) {
+  new_feature <- paste0("fe_", column)
+  new_feature_na <- paste0("fe_", column, "_na")
+  
+  datcompleto[, new_feature] <- datcompleto[, ..column]
+  datcompleto[get(new_feature) == 0, (new_feature) := NA]
+  
+  dat_bin_na[, (new_feature_na) := ifelse(
+    is.na(datcompleto[, get(new_feature)]), 
+    1, 
+    0)]
+  
+  datcompleto[, (column) := NULL]
+}
+
+#-- Aplicamos miss ranger sobre las columnas (imputacion multiple)
+datcompleto_imp <- missRanger(
+  datcompleto,  
+  pmm.k = 5,
+  num.trees = 100,
+  seed = 1234
+)
+# Comprobamos valores missings
+sum(is.na(datcompleto_imp))
+
+# Incluimos las columnas "_na" en datcompleto
+datcompleto_imp <- cbind(datcompleto_imp, dat_bin_na)
+
+# Comprobamos que el orden del dataset no ha cambiado
+which(datcompleto_imp$id == 50785) == fila_test
+
+#-- Modelo
+# Dividimos entre conjunto de entrenamiento y prueba
+train <- datcompleto_imp[c(1:fila_test-1),]
+train$status_group <- vector_status_group
+train$status_group <- as.factor(train$status_group)
+
+test <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
+
+formula   <- as.formula("status_group~.")
+# 0.8154377
+my_model_11 <- fit_random_forest(formula,
+                                 train)
+
+my_sub_11 <- make_predictions(my_model_11, test)
+# guardo submission
+fwrite(my_sub_11, file = "./submissions/11_05_lumping_sobre_funder_ward_freq_abs_categoricas_num_missings_imp.csv")
+# 0.8211
+
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8162121, 0.8154882, 0.8157071, 0.8154377), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8213, 0.8203, 0.8198, 0.8216, 0.8226, 0.8211),
+                        row.names = c("Mejor accuracy en el concurso",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana) + hashed",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward (mediana) + freq. abs. categoricas",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward (mediana) + freq. abs. categoricas + numericas imputadas")),
+             align = 'c')
+
+#-- Conclusion: la imputacion de missings no ha mejorado la precision del modelo ¿Podriamos no tener en cuenta las variables binarias "_na"?
+# Si las quitamos, obtenemos 0.8161785 en train y 0.8220 en submission
+#--- Pintar importancia de variables
+impor_df <- as.data.frame(my_model_11$variable.importance)
+names(impor_df)[1] <- c('Importance')
+impor_df$vars <- rownames(impor_df)
+rownames(impor_df) <- NULL
+
+# Las columnas "_na" son poco relevantes
+ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+  geom_col(group = 1, fill = "darkred") +
+  coord_flip() + 
+  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
+  theme_bw()
+ggsave('./charts/11_05_lumping_sobre_funder_ward_freq_abs_categoricas_num_missings_imp.png')
+
+
+
+
+
+
+
+
+
+
+
