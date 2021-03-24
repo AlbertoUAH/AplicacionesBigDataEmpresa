@@ -1,9 +1,9 @@
 #-------------------
 # Autor: Alberto Fernandez
 # Fecha: 2021_03_21
-# Inputs: Datos 05_fe_menos_2100_lumping_mediana_freq_abs.R
+# Inputs: Datos 06_fe_menos_2100_lumping_mediana_freq_abs_categoricas.R
 # Salida: Datos con nuevas variables (incluyendo categorias < 2100) + lumping + transformacion fe_funder, fe_ward y lga
-#        
+#         utilizando missRanger (aumentando el numero de arboles)
 # Comentarios: 
 #-------------------
 
@@ -117,20 +117,15 @@ new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
 #-- Solo cambian funder, ward y lga en relacion al numero de categorias
 freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
 
+#-- Imputacion de variables
 #-- En el concurso la imputacion mediante missRanger separando train y test no obtuvo buenos resultados
-#   ¿Y si aplicamos missRanger sobre el conjunto train+test?
-dat_bin_na <- data.table()
+#   ¿Y si aplicamos missRanger sobre el conjunto train+test? ¿Si aumentamos el numero de arboles a 500?
 for (column in c("construction_year", "gps_height", "longitude")) {
   new_feature <- paste0("fe_", column)
   new_feature_na <- paste0("fe_", column, "_na")
   
   datcompleto[, new_feature] <- datcompleto[, ..column]
   datcompleto[get(new_feature) == 0, (new_feature) := NA]
-  
-  dat_bin_na[, (new_feature_na) := ifelse(
-    is.na(datcompleto[, get(new_feature)]), 
-    1, 
-    0)]
   
   datcompleto[, (column) := NULL]
 }
@@ -139,14 +134,11 @@ for (column in c("construction_year", "gps_height", "longitude")) {
 datcompleto_imp <- missRanger(
   datcompleto,  
   pmm.k = 5,
-  num.trees = 100,
+  num.trees = 500,
   seed = 1234
 )
 # Comprobamos valores missings
 sum(is.na(datcompleto_imp))
-
-# Incluimos las columnas "_na" en datcompleto
-datcompleto_imp <- cbind(datcompleto_imp, dat_bin_na)
 
 # Comprobamos que el orden del dataset no ha cambiado
 which(datcompleto_imp$id == 50785) == fila_test
@@ -160,17 +152,17 @@ train$status_group <- as.factor(train$status_group)
 test <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
 
 formula   <- as.formula("status_group~.")
-# 0.8154377
+# 0.8156229
 my_model_11 <- fit_random_forest(formula,
                                  train)
 
 my_sub_11 <- make_predictions(my_model_11, test)
 # guardo submission
 fwrite(my_sub_11, file = "./submissions/11_05_lumping_sobre_funder_ward_freq_abs_categoricas_num_missings_imp.csv")
-# 0.8211
+# 0.8216
 
-knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8162121, 0.8154882, 0.8157071, 0.8154377), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8213, 0.8203, 0.8198, 0.8216, 0.8226, 0.8211),
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8162121, 0.8154882, 0.8157071, 0.8156229), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8213, 0.8203, 0.8198, 0.8216, 0.8226, 0.8216),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -178,11 +170,11 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana) + hashed",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward (mediana) + freq. abs. categoricas",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward (mediana) + freq. abs. categoricas + numericas imputadas")),
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward (mediana) + freq. abs. categoricas + num. imp. miss Ranger")),
              align = 'c')
 
-#-- Conclusion: la imputacion de missings no ha mejorado la precision del modelo ¿Podriamos no tener en cuenta las variables binarias "_na"?
-# Si las quitamos, obtenemos 0.8161785 en train y 0.8220 en submission
+#-- Conclusion: la imputacion de missings no ha mejorado la precision del modelo ¿Podriamos probar otros metodos de imputacion?
+
 #--- Pintar importancia de variables
 impor_df <- as.data.frame(my_model_11$variable.importance)
 names(impor_df)[1] <- c('Importance')
