@@ -30,7 +30,7 @@ fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed 
 
 make_predictions <- function(model, test_data) {
   # Prediccion
-  my_pred <- predict(model, test_data)
+  my_pred <- predict(model, test_data, type = "response")
   
   # Submission
   my_sub <- data.table(
