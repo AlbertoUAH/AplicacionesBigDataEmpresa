@@ -41,7 +41,20 @@ make_predictions <- function(model, test_data) {
   return(my_sub)
 }
 
-
+# Leave One Out Encoding
+encode_leave_one_out <- function(x, y) {
+  n <- length(x)
+  x[is.na(x)] <- "__MISSING"
+  x2 <- vapply(1:n, function(i) {
+    xval <- x[i]
+    yloo <- y[-i]
+    xloo <- x[-i]
+    yloo <- yloo[xloo == xval]
+    mean(yloo, na.rm = TRUE)
+  }, numeric(1))
+  x2
+  print("FINISHED")
+}
 
 
 
