@@ -49,7 +49,6 @@ for (i in 1:ncol(datcat_df)) {
   num_lev <- length(unique(col_tmp))
   numlev_df[i, 1] <- names(datcat_df)[i]
   numlev_df[i, 2] <- num_lev
-  print(numlev_df)
 }
 names(numlev_df) <- c('vars', 'levels')
 numlev_df %>% arrange(levels)
@@ -69,7 +68,6 @@ for (i in 1:ncol(fe_cat)) {
   num_lev <- nrow(unique(col_tmp))
   numlev_dt[i, 1] <- names(fe_cat)[i]
   numlev_dt[i, 2] <- num_lev
-  print(numlev_dt)
 }
 names(numlev_dt) <- c('vars', 'levels')
 numlev_dt %>% arrange(levels)
@@ -111,18 +109,18 @@ my_model_6 <- fit_random_forest(formula,
 
 my_sub_6 <- make_predictions(my_model_6, test)
 # guardo submission
-fwrite(my_sub_6, file = "./submissions/06_05_lumping_sobre_funder_ward.csv")
-# 0.8213
+fwrite(my_sub_6, file = "./submissions/06_lumping_y_fe_sobre_funder_ward_mediana.csv")
+# 0.8212
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8213),
+                        "Data Submission" = c(0.8180, 0.8197, 0.8212),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)")),
              align = 'c')
 
 #-- Conclusion: aplicando lumping tanto en fe_funder como fe_ward ha hecho que el score aumente ligeramente
+#   ¿Podriamos aumentar el lumping al tercer cuartil?
 #   ¿Podremos aplicar el mismo proceso a futuras variables categoricas? Ej: installer
-
 
 
 

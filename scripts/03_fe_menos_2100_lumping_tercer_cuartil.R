@@ -1,7 +1,7 @@
 #-------------------
 # Autor: Alberto Fernandez
 # Fecha: 2021_03_17
-# Inputs: Datos 02_fe_menos_2100_lumping_mediana.R
+# Inputs: Datos 01_fe_menos_2100.R
 # Salida: Datos con nuevas variables (incluyendo categorias < 2100 depuradas) + lumping
 #         1. Realizar una transformacion lumping sobre las variables funder y ward (sobre el tercer cuartil de las proporciones)
 # Comentarios: 
@@ -83,7 +83,7 @@ datcompleto[, fe_funder := clean_text(funder)][, fe_ward := clean_text(ward)]
 summary(c(prop.table(table(datcompleto[, fe_funder]))))
 datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 1e-04, other_level = "other")]
 datcompleto$fe_funder <- as.character(datcompleto$fe_funder)
-# Pasamos de 2110 a 512 categorias
+# Pasamos de 2110 a 502 categorias
 datcompleto[, funder := NULL]
 
 #-- fe_ward
@@ -109,11 +109,11 @@ my_model_7 <- fit_random_forest(formula,
 
 my_sub_7 <- make_predictions(my_model_7, test)
 # guardo submission
-fwrite(my_sub_7, file = "./submissions/07_06_lumping_sobre_funder_ward_tercer_cuartil.csv")
+fwrite(my_sub_7, file = "./submissions/07_lumping_y_fe_sobre_funder_ward_tercer_cuartil.csv")
 # 0.8203
 
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8213, 0.8203),
+                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
