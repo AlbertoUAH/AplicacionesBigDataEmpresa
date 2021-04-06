@@ -15,7 +15,7 @@ fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed 
     formula, 
     importance = 'impurity',
     data       = data,
-    num.trees = num_trees,
+    num.trees  = num_trees,
     mtry = mtry,
     verbose = FALSE,
     seed = seed
