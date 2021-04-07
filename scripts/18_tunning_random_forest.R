@@ -123,12 +123,11 @@ rm(cont); rm(my_model); rm(my_sub)
 #   Con 850 arboles                      : 0.8177778
 
 #-- ¿Y si reducimos el numero de arboles?
-cont <- 32
+cont <- 25
 for (n_tree in c(300, 400)) {
   submission_name <- paste0("./submissions/tunning_models/random_forest/",cont,"_rf_ntree_",n_tree,"_mtry_original.csv")
   my_model        <- fit_random_forest(formula, train, num_trees = n_tree)
   my_sub          <- make_predictions(my_model, test)
-  cont            <- cont + 1
   fwrite(my_sub, file = submission_name)
 }
 rm(cont); rm(my_model); rm(my_sub)
@@ -179,7 +178,54 @@ rm(mtry); rm(my_model); rm(my_sub)
 
 
 #-- Observamos que el punto optimo es ntree = 500 y mtry = 6
+# No todas las variables presentan alta importancia
+my_model <- fit_random_forest(formula, train, num_trees = 500)
+impor_df <- as.data.frame(my_model$variable.importance)
+names(impor_df)[1] <- c('Importance')
+impor_df$vars <- rownames(impor_df)
+rownames(impor_df) <- NULL
 
+ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+  geom_col(group = 1, fill = "darkred") +
+  coord_flip() + 
+  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
+  theme_bw()
+ggsave('./charts/random_forest_feature_importance.png')
+
+# ¿Y si eliminamos hasta fe_management?
+variables_selecionadas     <- impor_df[impor_df$Importance > 150, "vars"]
+my_model_feature_selection <- fit_random_forest(formula, train[, ..variables_selecionadas], num_trees = 500)
+my_sub_feature_selection   <- make_predictions(my_model_feature_selection, test[, ..variables_selecionadas])
+fwrite(my_sub_feature_selection, file = "./submissions/tunning_models/random_forest/test_rf/rf_variables_hasta_fe_management_group.csv")
+# ntree 500           : 0.8168855 - 0.8253 (por la semilla)
+# ntree 500           : 0.8166162 - 0.8225 (hasta fe_management)
+# ntree 500           : 0.8167003 - 0.8230 (hasta fe_management_group)
+
+#-- ¿Y si aplicamos prepare_set?
+dattrainOrlab    <- fread(file = "./data/train_values.csv", data.table = FALSE )
+dattestOr        <- fread(file = "./data/test_values.csv", data.table = FALSE  )
+
+datfinal         <- as.data.table(rbind(dattrainOrlab, dattestOr))
+datfinal[, `:=`(payment_type = NULL, quantity_group = NULL, recorded_by = NULL)] 
+vector_id        <- datfinal$id
+datfinal[, id := NULL]
+datfinal_limpio    <- prepare_set(datfinal, final_form = "data.table")
+datfinal_limpio$id <- vector_id
+rm(vector_id)
+
+train_prepare_set              <- datfinal_limpio[c(1:fila_test-1),]
+train_prepare_set$status_group <- vector_status_group
+train_prepare_set$status_group <- as.factor(train_prepare_set$status_group)
+
+test_prepare_set <- datfinal_limpio[c(fila_test:nrow(datcompleto_imp)),]
+
+# Accuracy obtenida con prepare_set: 0.4972727
+my_model_prepare_set  <- fit_random_forest(formula, train_prepare_set)
+my_sub_prepare_set    <- make_predictions(my_model_prepare_set, test_prepare_set)
+names(my_sub_prepare_set)[1] <- "id"
+fwrite(my_sub_prepare_set, file = "./submissions/tunning_models/random_forest/automatic.csv")
+
+# 0.5159
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8160774, 0.8154882, 0.8157071, 0.8086364,
                                              0.8152694, 0.8161111, 0.8161616, 0.8164478, 0.8165657, 0.8167508, 0.8168855, 0.8168855, 0.8167508,
                                              0.8168855), 

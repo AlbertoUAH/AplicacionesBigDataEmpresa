@@ -56,7 +56,25 @@ encode_leave_one_out <- function(x, y) {
   print("FINISHED")
 }
 
+fit_xgboost_model <- function(params, train, val, nrounds, show_log_error = TRUE) {
+  my_model <- xgb.train(
+    data   = train,
+    params = params,
+    watchlist=list(val1=val),
+    verbose = 1,
+    nrounds= nrounds,
+    nthread=4
+  )
+  return(my_model)
+}
 
+make_predictions_xgboost <- function(my_model, test) {
+  xgb_pred <- predict(my_model,as.matrix(test),reshape=T)
+  xgb_pred <- ifelse(xgb_pred == 0, "functional", ifelse(xgb_pred == 1, "functional needs repair", "non functional"))
+  
+  xgb_pred <- data.table(id = test$id, status_group = xgb_pred)
+  return(xgb_pred)
+}
 
 
 
