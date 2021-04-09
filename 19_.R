@@ -63,13 +63,16 @@ xgb.train = xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 
 params = list(
   objective = "multi:softmax",
-  num_class = 3
+  num_class = 3,
+  colsample_bytree = 0.3
 )
 
+set.seed(1234)
 my_model <- xgb.train(
-  data   = train,
+  data   = xgb.train,
   params = params,
-  watchlist=list(val1=val),
+  watchlist=list(val1=xgb.train),
+  early_stopping_rounds = 20,
   verbose = 1,
   nrounds= 500,
   nthread=4
@@ -81,65 +84,94 @@ xgb_pred <- ifelse(xgb_pred == 0, "functional", ifelse(xgb_pred == 1, "functiona
 xgb_pred <- data.table(id = test$id, status_group = xgb_pred)
 
 fwrite(xgb_pred, file = "./submissions/tunning_models/xgboost/26_xgboost_sin_tunear.csv")
-# 0.8118 Sin tunear (ultimo mlogloss: 0.185288)
+# 0.8160 Sin tunear (ultimo mlogloss: 0.229939)
 
-#-- Modelo 2: aumentando eta a 0.5
+#-- Modelo 2: aumentando el numero de arboles a 600
 # ¿Y si aumentamos el valor de eta? Por defecto esta a 0.3, podriamos aumentarlo antes que aumentar el numero de iteraciones
 params = list(
   objective = "multi:softmax",
   num_class = 3,
-  eta       = 0.5
+  colsample_bytree = 0.3
 )
 
-my_model_2 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 500)
+my_model_2 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 600)
 xgb_pred_2 <- make_predictions_xgboost(my_model_2, test)
-fwrite(xgb_pred_2, file = "./submissions/tunning_models/xgboost/26_xgboost_eta_0.5.csv")
-# 0.8094 con eta 0.5 (ultimo mlogloss: 0.111186)
+fwrite(xgb_pred_2, file = "./submissions/tunning_models/xgboost/26_xgboost_600_rounds.csv")
+# 0.8138 con 600 iteraciones (ultimo mlogloss: 0.205605)
 
-# El hecho de aumentar eta a 0.5 no parece hacer que mejore el modelo
-# Podriamos probar con 0.4
+# Aumentamos a 550?
 params = list(
   objective = "multi:softmax",
   num_class = 3,
-  eta       = 0.4
+  colsample_bytree = 0.3
 )
 
-my_model_3 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 500)
+my_model_3 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 550)
 xgb_pred_3 <- make_predictions_xgboost(my_model_3, test)
-fwrite(xgb_pred_3, file = "./submissions/tunning_models/xgboost/26_xgboost_eta_0.4.csv")
-# 0.8110 con eta 0.4 (ultimo mlogloss: 0.142726)
+fwrite(xgb_pred_3, file = "./submissions/tunning_models/xgboost/26_xgboost_550_rounds.csv")
+# 0.8146 con 550 iteraciones (ultimo mlogloss: 0.217445)
 
-# Emplear eta's demasiado altos hace que el modelo empeore, se sobreajuste ¿Y si reducimos el valor eta?
+# Aumentar el numero de iteraciones no parece ayudar ¿Y si reducimos el numero de iteraciones?
 params = list(
   objective = "multi:softmax",
   num_class = 3,
-  eta       = 0.1
+  colsample_bytree = 0.3
 )
-
-my_model_4 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 500)
+my_model_4 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 400)
 xgb_pred_4 <- make_predictions_xgboost(my_model_4, test)
-fwrite(xgb_pred_4, file = "./submissions/tunning_models/xgboost/26_xgboost_eta_0.1.csv")
-# 0.8118 con eta 0.1 (ultimo mlogloss: 0.339880)
+fwrite(xgb_pred_4, file = "./submissions/tunning_models/xgboost/26_xgboost_400_rounds.csv")
+# 0.8150 con 400 iteraciones (ultimo mlogloss: 0.259503)
 
-feature_importance <- xgb.importance(feature_names = names(xgb.train), model = my_model)
-xgb.ggplot.importance(
-  importance_matrix = feature_importance
+#-- Hasta ahora, hemos podido comprobar que con 500 iteraciones se obtiene el valor maximo de accuracy (0.8160)
+#   ¿Y si tuneamos el resto de parametros?
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           max_depth = c(20, 15, 10, 8, 6, 3),
+                           eta = c(0.3, 0.4, 0.5)
 )
-# Hay muchas variables que no son relevantes
-#-- Podemos probar seleccionando variables mas relevantes (hasta fe_dr_month)
-params = list(
-  objective = "multi:softmax",
-  num_class = 3
-)
-variables  <- feature_importance[feature_importance$Gain > 0.01, "Feature"]$Feature
-xgb.train = xgb.DMatrix(data=as.matrix(train[,..variables]), label=vector_status_group)
-my_model_5 <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 600)
-xgb_pred_5 <- make_predictions_xgboost(my_model_5, test[, ..variables])
-fwrite(xgb_pred_5, file = "./submissions/tunning_models/xgboost/26_xgboost_feature_importance_hasta_dr_month.csv")
-# 0.8116 y 0.188664 Con 500 iteraciones
-# 0.8120 y 0.161307 Con 600 iteraciones
-# 0.8104 y 0.139704 Con 700 iteraciones
 
+error_final <- c()
+
+for(fila in 1:nrow(search_grid)) {
+  params = list(
+      objective = "multi:softmax",
+      num_class = 3,
+      colsample_bytree = search_grid[fila, "colsample_bytree"],
+      max_depth        = search_grid[fila, "max_depth"],
+      eta              = search_grid[fila, "eta"]
+    )
+    
+  my_model <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 500)
+  xgb_pred <- make_predictions_xgboost(my_model, test)
+  fwrite(xgb_pred, 
+         file = paste0("./submissions/tunning_models/xgboost/tuneo/colsample_",search_grid[fila, "colsample_bytree"],
+                       "_max_depth_",search_grid[fila, "max_depth"],"_eta_",search_grid[fila, "eta"],".csv")
+         )
+  
+  error_final <- c(error_final, tail(my_model$evaluation_log$val1_mlogloss, 1))
+}
+cbind(search_grid, 1-error_final)
+
+# Analicemos los resultados (guardado en Excel): la clave reside en max_depth 10-15. Probamos a bajar eta a 0.1 y 0.2
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           max_depth = c(15, 10),
+                           eta = c(0.1, 0.2)
+)
+
+# Disminuyendo eta parece que mejora...
+# Probamos a reducirlo mas...
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           max_depth = c(15),
+                           eta = c(0.01, 0.02, 0.05, 0.08)
+)
+
+# Empleando 0.02 obtenemos buenos resultados ¿Y si aumentamos el numero de iteraciones?
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           max_depth = c(15),
+                           eta = c(0.02)
+)
+
+
+stopCluster(cl)
 
 
 

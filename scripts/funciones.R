@@ -56,13 +56,15 @@ encode_leave_one_out <- function(x, y) {
   print("FINISHED")
 }
 
-fit_xgboost_model <- function(params, train, val, nrounds, show_log_error = TRUE) {
+fit_xgboost_model <- function(params, train, val, nrounds, early_stopping_rounds = 20, show_log_error = TRUE, seed = 1234) {
+  set.seed(seed)
   my_model <- xgb.train(
     data   = train,
     params = params,
     watchlist=list(val1=val),
     verbose = 1,
     nrounds= nrounds,
+    early_stopping_rounds = early_stopping_rounds,
     nthread=4
   )
   return(my_model)

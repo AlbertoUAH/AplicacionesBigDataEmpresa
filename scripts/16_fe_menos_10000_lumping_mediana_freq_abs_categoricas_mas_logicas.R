@@ -57,9 +57,12 @@ datcompleto_imp$fe_dr_day_count <- as.numeric(fecha_referencia - ymd(date_record
 #-- Si incluimos otros campos, mediante el paquete lubridate
 #datcompleto_imp$fe_dr_day  <- day(date_recorded)        # Dia
 #datcompleto_imp$fe_dr_wday <- wday(date_recorded)       # Dia de la semana
-#datcompleto_imp$fe_dr_qday <- qday(date_recorded)       # Dia del cuatrimestre
+datcompleto_imp$fe_dr_qday <- qday(date_recorded)       # Dia del cuatrimestre
 #datcompleto_imp$fe_dr_week <- week(date_recorded)       # Semana
 #datcompleto_imp$fe_dr_quarter <- quarter(date_recorded) # Cuatrimestre
+
+#-- Si incluimos si es o no fin de semana
+#datcompleto_imp[, fe_is_weekend := ifelse(wday(date_recorded) %in% c(1,7), 1, 0)]
 
 #-- Si aplicamos una transformacion seno-coseno a los meses
 # datcompleto_imp[, fe_dr_month_sin := sin(2*pi*fe_dr_month / 12)]
@@ -85,20 +88,22 @@ registerDoParallel(cl)
 # Incluyendo day_count y year: 0.8175421
 # Incluyendo otros campos    : 0.8170202
 # qday + day + day_count     : 0.8176768
-# igual pero sin dr_month    : 0.8170875
+# igual pero sin day         : 0.8171212
+# con wday (fin de semana)   : 0.8172727 (si lo incluimos con day_count): 0.8179798
 # month sin cos transform    : 0.8172391
 my_model_20 <- fit_random_forest(formula, train)
 
 my_sub_20 <- make_predictions(my_model_20, test)
 # guardo submission
-fwrite(my_sub_20, file = "./submissions/temp/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_month_sin_cos_transformation.csv")
+fwrite(my_sub_20, file = "./submissions/temp/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_qday_day_count.csv")
 # Incluyendo day_count        : 0.8248
 # Incluyendo month_count      : 0.8248
 # Incluyendo day_count y year : 0.8244
 # Incluyendo otros campos     : 0.8224
 # qday y day parecen ser variables con alta importancia, ¿Y si las incluimos junto con day_count?
 # qday + day + day_count      : 0.8228
-# igual pero sin dr_month     : 0.8228
+# igual pero sin day          : 0.8229
+# con wday (fin de semana)    : 0.8241 (si lo incluimos con day_count): 0.8240
 # con sin cos transformation  : 0.8224
 
 #-- Importancia variables
