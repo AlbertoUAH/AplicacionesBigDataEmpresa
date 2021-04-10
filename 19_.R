@@ -140,11 +140,11 @@ for(fila in 1:nrow(search_grid)) {
       eta              = search_grid[fila, "eta"]
     )
     
-  my_model <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 500)
+  my_model <- fit_xgboost_model(params, xgb.train, xgb.train, nrounds = 700)
   xgb_pred <- make_predictions_xgboost(my_model, test)
   fwrite(xgb_pred, 
          file = paste0("./submissions/tunning_models/xgboost/tuneo/colsample_",search_grid[fila, "colsample_bytree"],
-                       "_max_depth_",search_grid[fila, "max_depth"],"_eta_",search_grid[fila, "eta"],".csv")
+                       "_max_depth_",search_grid[fila, "max_depth"],"_eta_",search_grid[fila, "eta"],"_700_iter.csv")
          )
   
   error_final <- c(error_final, tail(my_model$evaluation_log$val1_mlogloss, 1))

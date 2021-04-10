@@ -50,10 +50,9 @@ for (i in 1:ncol(datcat_df)) {
   num_lev <- length(unique(col_tmp))
   numlev_df[i, 1] <- names(datcat_df)[i]
   numlev_df[i, 2] <- num_lev
-  print(numlev_df)
 }
 names(numlev_df) <- c('vars', 'levels')
-numlev_df %>% arrange(levels)
+total_niveles <- numlev_df %>% arrange(levels)
 
 # funder, ward
 #-- Demasiadas categorias ¿Puede que algunas se repitan?
@@ -61,6 +60,18 @@ datcompleto <- as.data.table(datcompleto)
 
 # ¿Categorias que solo se diferencian por una letra en mayuscula o minuscula? ¿O porque esten separados?
 datcompleto[, fe_funder := clean_text(funder)][, fe_ward := clean_text(ward)]
+
+datcat_df <- as.data.frame(datcompleto %>% select(where(is.character)))
+
+numlev_df <- data.frame()
+for (i in 1:ncol(datcat_df)) {
+  col_tmp <- datcat_df[, i]
+  num_lev <- length(unique(col_tmp))
+  numlev_df[i, 1] <- names(datcat_df)[i]
+  numlev_df[i, 2] <- num_lev
+}
+names(numlev_df) <- c('vars', 'levels')
+total_niveles_2 <- numlev_df %>% arrange(levels)
 
 #-- fe_funder    (2110 categorias) vs funder      (2141 categorias)
 #   fe_ward      (2096 categorias) vs ward        (2098 categorias)
@@ -92,4 +103,17 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832),
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward")),
              align = 'c')
 
+#--- Pintar importancia de variables
+impor_df <- as.data.frame(my_model_5$variable.importance)
+names(impor_df)[1] <- c('Importance')
+impor_df$vars <- rownames(impor_df)
+rownames(impor_df) <- NULL
+
+
+ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+  geom_col(group = 1, fill = "darkred") +
+  coord_flip() + 
+  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
+  theme_bw()
+ggsave('./charts/05_04_mas_fe_inst_funder_scheme_ward.png')
 
