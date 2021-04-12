@@ -455,17 +455,21 @@ summary {
 <p>En relación con las librerías empleadas, debemos destacar las siguientes:</p>
 <pre class="r"><code>#--- Librerias empleadas
 suppressPackageStartupMessages({
-  library(dplyr)          # Manipulacion de datos 
-  library(data.table)     # Lectura y escritura de ficheros
-  library(ggplot2)        # Representacion grafica
-  library(inspectdf)      # EDAs automaticos
-  library(ranger)         # randomForest (+ rapido que caret)
-  library(forcats)        # Tratamiento de variables categoricas
-  library(tictoc)         # Calculo de tiempo de ejecucion
-  library(missRanger)     # Imputacion de valores NA
-  library(knitr)          # Generacion de informes (formateo de tablas)
-  library(gmt)            # Calculo de la distancia geografica
-  library(stringi)        # Tratamiento de strings
+  library(dplyr)           # Manipulacion de datos 
+  library(data.table)      # Lectura y escritura de ficheros
+  library(ggplot2)         # Representacion grafica
+  library(inspectdf)       # EDAs automaticos
+  library(ranger)          # randomForest (+ rapido que caret)
+  library(forcats)         # Tratamiento de variables categoricas
+  library(tictoc)          # Calculo de tiempo de ejecucion
+  library(missRanger)      # Imputacion de valores NA
+  library(knitr)           # Generacion de informes (formateo de tablas)
+  library(gmt)             # Calculo de la distancia geografica
+  library(stringi)         # Tratamiento de strings
+  library(FeatureHashing)  # Hashing Encoding
+  library(dataPreparation) # Target encoding
+  library(embed)           # Word-Embeddings
+  library(recipes)         # Definicion de recetas (preprocesamiento de datos + FE)
 })</code></pre>
 <pre class="r"><code>#--- Carga de ficheros train y test
 dattrainOr    &lt;- fread(file = &quot;../data/train_values.csv&quot;, data.table = FALSE )
@@ -1192,6 +1196,8 @@ fwrite(my_sub_4,
 </div>
 <div id="mejora-del-modelo-tras-el-concurso" class="section level1">
 <h1>3. Mejora del modelo tras el concurso</h1>
+<div id="feature-engineering" class="section level2">
+<h2>3.1 Feature Engineering</h2>
 <p>Tras el concurso, por cuenta propia se ha decidido partir del mejor modelo obtenido hasta el momento, correspondiente con:</p>
 <ol style="list-style-type: decimal">
 <li>Variables numéricas</li>
@@ -1222,8 +1228,8 @@ datcompleto &lt;- as.data.table(datcompleto)</code></pre>
 <pre class="r"><code># El conjunto test empieza a partir de la 59401
 # 50785: primer id del conjunto test
 fila_test &lt;- which(datcompleto$id == 50785)</code></pre>
-<div id="incluyendo-variables-2100-valores-únicos" class="section level2">
-<h2>3.1 Incluyendo variables &lt; 2100 valores únicos</h2>
+<div id="incluyendo-variables-2100-valores-únicos" class="section level3">
+<h3>3.1.1 Incluyendo variables &lt; 2100 valores únicos</h3>
 <p>Hasta ahora, hemos incluido variables con menos de 1000 categorias únicas, esto es, hasta la variable <em>lga</em>. Durante el concurso, no se tuvieron en cuenta, dado que sel objetivo fue maximizar el <em>score</em> del modelo sin necesidad de recurrir a variables con un alto número de categorías. Por ello, de cara a la parte individual se tomó la decisión de trabajar sobre dichos campos.</p>
 <p>Con el objetivo de seguir un orden y <strong>no incluir todas las variables “de forma abrupta”</strong>, comenzamos con aquellas con menos de 2100 categorías, esto es, <em>funder</em> y <em>ward</em>:</p>
 <pre class="r"><code>#--- Niveles de las categoricas.
@@ -1380,15 +1386,1215 @@ fwrite(my_sub_5,
 </table>
 <p>Aparentemente, hemos conseguido un mejor <em>score</em> que el obtenido en clase.</p>
 </div>
-<div id="aplicando-lumping-sobre-ward-y-funder" class="section level2">
-<h2>3.2 Aplicando lumping sobre ward y funder</h2>
-<p>Tras la mejora en el modelo anterior, todavía quedan demasiadas categorías en <em>ward</em> y <em>funder</em>, concretamente 2098 y 2110 categorías, respectivamente. Además, si echamos un vistazo a la proporción de aparición de las diferentes categorías de cada variable:</p>
-<pre class="r"><code>summary(c(prop.table(table(datcompleto[, fe_funder])))) # fe_funder</code></pre>
-<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
-## 1.347e-05 1.347e-05 1.347e-05 4.739e-04 9.428e-05 1.522e-01</code></pre>
-<pre class="r"><code>summary(c(prop.table(table(datcompleto[, fe_ward])))) # fe_ward</code></pre>
+<div id="aplicando-lumping-sobre-ward-y-funder-mediana" class="section level3">
+<h3>3.1.2 Aplicando lumping sobre ward y funder (mediana)</h3>
+<p>Tras la mejora en el modelo anterior, todavía quedan demasiadas categorías en <em>ward</em> y <em>funder</em>, concretamente 2098 y 2110 categorías, respectivamente. Además, si echamos un vistazo a la proporción de aparición de las diferentes categorías de cada variable, mediante la función <em>prop.table</em>:</p>
+<pre class="r"><code>prop_categorias_ward   &lt;- summary(c(prop.table(table(datcompleto[, fe_ward])))) # fe_ward
+prop_categorias_ward</code></pre>
 <pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
 ## 1.347e-05 1.751e-04 3.367e-04 4.771e-04 6.330e-04 5.199e-03</code></pre>
+<pre class="r"><code>prop_categorias_funder &lt;- summary(c(prop.table(table(datcompleto[, fe_funder])))) # fe_funder
+prop_categorias_funder</code></pre>
+<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+## 1.347e-05 1.347e-05 1.347e-05 4.739e-04 9.428e-05 1.522e-01</code></pre>
+<p>Observamos que <strong>muchas de las categorías aperecen con muy poca frecuencia</strong>. Por ejemplo, si nos fijamos en la mediana vemos que la mitad de las categorías de <em>fe_ward</em> aparecen con una proporción igual o inferior a 3.37e-04, así como en <em>fe_funder</em>, con una proporción aún más pequeña (del orden de 1e-5).</p>
+<p>Por tanto, una posibilidad sería <strong>aplicar lumping sobre aquellas categorías con una proporción de aparición muy pequeña</strong>, agrupándose en torno a una única categoría ( <em>other</em> ). En un primer comienzo, podemos aplicarlo sobre la mediana. Por ejemplo, en el caso de la variable <em>ward</em>, dado que la mediana se sitúa en torno a 3.367e-04, aplicamos <em>lumping</em> <strong>a partir de aquellas categorías con una proporción inferior a 4e-04, de forma aproximada</strong>, haciendo uso de la función <em>fct_lump_prop</em> del paquete <em>forcats</em>:</p>
+<pre class="r"><code>#-- fe_ward
+datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 4e-04, other_level = &quot;other&quot;)]
+datcompleto$fe_ward &lt;- as.character(datcompleto$fe_ward)
+
+# Pasamos de 2096 a 904 categorias (menos de la mitad de categorias)
+sum(length(unique(datcompleto[, fe_ward])))</code></pre>
+<pre><code>## [1] 904</code></pre>
+<p>En el caso de <em>funder</em>, aproximamos a 2e-05:</p>
+<pre class="r"><code>#-- fe_funder
+datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 2e-05, other_level = &quot;other&quot;)]
+datcompleto$fe_funder &lt;- as.character(datcompleto$fe_funder)
+
+# Pasamos de 2110 a 999 categorias (menos de la mitad de categorias)
+sum(length(unique(datcompleto[, fe_funder])))</code></pre>
+<pre><code>## [1] 999</code></pre>
+<p>Como podemos comprobar, <strong>conseguimos reducir significativamente el número de categorías en ambas variables</strong>. Una vez aplicado <em>lumping</em> sobre dichas columnas, lanzamos nuevamente un modelo <em>Random Forest</em>:</p>
+<pre class="r"><code>#-- Modelo
+# Dividimos entre conjunto de entrenamiento y prueba
+train &lt;- datcompleto[c(1:fila_test-1),]
+train$status_group &lt;- vector_status_group
+train$status_group &lt;- as.factor(train$status_group)
+
+test &lt;- datcompleto[c(fila_test:nrow(datcompleto)),]
+
+formula   &lt;- as.formula(&quot;status_group~.&quot;)
+
+# Empleamos la funcion fit_random_forest definida anteriormente
+my_model_6 &lt;- fit_random_forest(formula, train)</code></pre>
+<pre><code>[1] 0.8159764
+39.081 sec elapsed</code></pre>
+<p>En relación con el modelo anterior, el hecho de disminuir el número de categorías ha mejorado el resultado en el conjunto <em>train</em> (pasando de 0.8149832 a 0.8159764). A continuación, analicemos el conjunto <em>test</em>:</p>
+<pre class="r"><code>my_sub_6 &lt;- make_predictions(my_model_5, dattestOr)
+# guardo submission
+fwrite(my_sub_6, 
+    file = &quot;../submissions/06_lumping_y_fe_sobre_funder_ward_mediana.csv&quot;)</code></pre>
+<pre class="r"><code>knitr::kable(data.frame(&quot;Train accuracy&quot; = c(&#39;-&#39;, 0.8149832, 0.8159764), 
+                        &quot;Data Submission&quot; = c(0.8180, 0.8197, 0.8212),
+                        row.names = c(&quot;Mejor accuracy en el concurso&quot;,
+                                      &quot;Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward&quot;,
+                                      &quot;Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)&quot;)),
+             align = &#39;c&#39;)</code></pre>
+<table>
+<colgroup>
+<col width="70%"></col>
+<col width="14%"></col>
+<col width="15%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Observamos que incluso en el conjunto <em>test</em> el <em>score</em> ha aumentado a 0.8212</strong>.</p>
+</div>
+<div id="aplicando-lumping-sobre-ward-y-funder-primer-y-tercer-cuartil" class="section level3">
+<h3>3.1.3 Aplicando lumping sobre ward y funder (primer y tercer cuartil)</h3>
+<p>En el apartado anterior, aplicamos <em>lumping</em> sobre aquellas categorías cuya proporción de aparición se situase por debajo de la mediana, aproximadamente. No obstante, ¿Y si aplicamos el punto de corte sobre el primer o tercer cuartil? Es decir, si recordamos la salida del <em>summary</em> anterior:</p>
+<pre class="r"><code>prop_categorias_ward   # fe_ward</code></pre>
+<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+## 1.347e-05 1.751e-04 3.367e-04 4.771e-04 6.330e-04 5.199e-03</code></pre>
+<pre class="r"><code>prop_categorias_funder # fe_funder</code></pre>
+<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+## 1.347e-05 1.347e-05 1.347e-05 4.739e-04 9.428e-05 1.522e-01</code></pre>
+<p>Podríamos aplicar <em>lumping</em> sobre el primer cuartil, de forma aproximada, o bien sobre el tercer cuartil. De este modo, <strong>podemos comprobar si agrupando un mayor o menor número de categorías conseguimos mejorar la puntuación</strong> (“jugar con el punto de corte”).</p>
+<div id="sobre-el-primer-cuartil" class="section level4">
+<h4>3.1.3.1 Sobre el primer cuartil</h4>
+<pre class="r"><code>#-- fe_ward (primer cuartil: 1.751e-04, aplicamos el punto de corte sobre 2e-04 aprox.)
+datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 2e-04, other_level = &quot;other&quot;)]
+datcompleto$fe_ward &lt;- as.character(datcompleto$fe_ward)
+
+# Pasamos de 2096 a 1483 categorias
+sum(length(unique(datcompleto[, fe_ward])))</code></pre>
+<pre><code>## [1] 1483</code></pre>
+<pre class="r"><code>#-- fe_funder (primer cuartil: 1.347e-05, aplicamos el punto de corte sobre 2e-05 aprox.)
+datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 2e-05, other_level = &quot;other&quot;)]
+datcompleto$fe_funder &lt;- as.character(datcompleto$fe_funder)
+
+# Pasamos de 2110 a 999 categorias (primer cuartil = mediana)
+sum(length(unique(datcompleto[, fe_funder])))</code></pre>
+<pre><code>## [1] 999</code></pre>
+<p>Una vez aplicado <em>lumping</em>, recalculamos el modelo:</p>
+<pre class="r"><code>#-- Modelo
+# Dividimos entre conjunto de entrenamiento y prueba
+train &lt;- datcompleto[c(1:fila_test-1),]
+train$status_group &lt;- vector_status_group
+train$status_group &lt;- as.factor(train$status_group)
+
+test &lt;- datcompleto[c(fila_test:nrow(datcompleto)),]
+
+formula   &lt;- as.formula(&quot;status_group~.&quot;)
+# Resultado train: 0.8159259
+my_model_7 &lt;- fit_random_forest(formula,
+                                train)
+
+my_sub_7 &lt;- make_predictions(my_model_7, test)
+
+fwrite(my_sub_7, file = &quot;./submissions/07_lumping_y_fe_sobre_funder_ward_primer_cuartil.csv&quot;)
+# Score: 0.8196</code></pre>
+<pre class="r"><code>knitr::kable(data.frame(&quot;Train accuracy&quot; = c(0.8159764, 0.8159259), 
+                        &quot;Data Submission&quot; = c(0.8212, 0.8196),
+                        row.names = c(&quot;lumping sobre mediana&quot;,
+                                      &quot;lumping sobre primer cuartil&quot;)),
+             align = &#39;c&#39;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">lumping sobre mediana</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">lumping sobre primer cuartil</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+</tbody>
+</table>
+<p>Observamos que manteniendo un mayor número de categorías, el <em>score</em> obtenido tanto en <em>train</em> como en <em>test</em> empeora.</p>
+</div>
+<div id="sobre-el-tercer-cuartil" class="section level4">
+<h4>3.1.3.2 Sobre el tercer cuartil</h4>
+<pre class="r"><code>#-- fe_ward (primer cuartil: 6.330e-04, aplicamos el punto de corte sobre 7e-04 aprox.)
+datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 7e-04, other_level = &quot;other&quot;)]
+datcompleto$fe_ward &lt;- as.character(datcompleto$fe_ward)
+
+# Pasamos de 2096 a 452 categorias
+sum(length(unique(datcompleto[, fe_ward])))</code></pre>
+<pre><code>## [1] 452</code></pre>
+<pre class="r"><code>#-- fe_funder (primer cuartil: 9.428-05, aplicamos el punto de corte sobre 1e-04 aprox.)
+datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 1e-04, other_level = &quot;other&quot;)]
+datcompleto$fe_funder &lt;- as.character(datcompleto$fe_funder)
+
+# Pasamos de 2110 a 502 categorias
+sum(length(unique(datcompleto[, fe_funder])))</code></pre>
+<pre><code>## [1] 502</code></pre>
+<pre class="r"><code>#-- Modelo
+# Dividimos entre conjunto de entrenamiento y prueba
+train &lt;- datcompleto[c(1:fila_test-1),]
+train$status_group &lt;- vector_status_group
+train$status_group &lt;- as.factor(train$status_group)
+
+test &lt;- datcompleto[c(fila_test:nrow(datcompleto)),]
+
+formula   &lt;- as.formula(&quot;status_group~.&quot;)
+# Resultado train: 0.8146633
+my_model_8 &lt;- fit_random_forest(formula,
+                                train)
+
+my_sub_8 &lt;- make_predictions(my_model_8, test)
+
+fwrite(my_sub_8, file = &quot;./submissions/08_lumping_y_fe_sobre_funder_ward_tercer_cuartil.csv&quot;)
+# Score: 0.8203</code></pre>
+<pre class="r"><code>knitr::kable(data.frame(&quot;Train accuracy&quot; = c(0.8159764, 0.8159259, 0.8146633), 
+                        &quot;Data Submission&quot; = c(0.8212, 0.8196, 0.8203),
+                        row.names = c(&quot;lumping sobre mediana&quot;,
+                                      &quot;lumping sobre primer cuartil&quot;,
+                                      &quot;lumping sobre tercer cuartil&quot;)),
+             align = &#39;c&#39;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">lumping sobre mediana</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">lumping sobre primer cuartil</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="odd">
+<td align="left">lumping sobre tercer cuartil</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+</tbody>
+</table>
+<p>Comprobamos que, pese a mejorar el <em>score</em> del modelo al aplicar el punto de corte sobre el tercer cuartil, el resultado obtenido sobre la mediana continua siendo mejor.</p>
+<p>Por tanto, <strong>sobre las variables <em>fe_ward</em> y <em>fe_funder</em> aplicamos <em>lumping</em> sobre la mediana de proporción de aparición de cada una de sus categorías</strong>, reduciendo el número a 904 y 999, respectivamente.</p>
+<table>
+<colgroup>
+<col width="72%"></col>
+<col width="13%"></col>
+<col width="14%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+</tbody>
+</table>
+<p>Pese a aplicar <em>lumping</em> sobre ambas variables, continuamos teniendo demasiadas categorías: 904 en el caso de <em>fe_ward</em> y 999 en el caso de <em>fe_funder</em>. Como consecuencia, se plantearon diversas alternativas con el fin de reducir nuevamente el número de valores únicos sobre dichas columnas, observando con ello si el <em>score</em> obtenido mejora:</p>
+<ol style="list-style-type: decimal">
+<li><p><em>Hashing encoding</em></p></li>
+<li><p><em>Frecuencias absolutas</em></p></li>
+<li><p><em>Target encoding</em></p></li>
+<li><p><em>Word Embedding</em></p></li>
+</ol>
+</div>
+</div>
+<div id="aplicando-hashing-sobre-fe_funder-y-fe_ward" class="section level3">
+<h3>3.1.4 Aplicando hashing sobre fe_funder y fe_ward</h3>
+<p>También conocido como <em>Feature Hashing</em>, consiste en transformar un elevado conjunto de características en un vector, por medio de una función de transformación o <em>hash function</em>. No obstante, uno de los principales incovenientes de dicha técnica reside en el ratio de colisión o <em>collision rate</em>, es decir, <strong>cuando dos categorías presentan el mismo resultado en la función hash</strong>. Por tanto, <strong>cuanto mayor sea el tamaño de la función <em>hash</em>, habrá un menor ratio de colisión</strong>.</p>
+<p>Para ello, haremos uso del paquete <em>FeatureHashing</em> disponible en CRAN. Dicho paquete dispone de una función denominada <em>hash.size</em>, el cual indica <strong>el tamaño mínimo (teórico) que permite reducir al mínimo el ratio de colisión entre valores <em>hash</em></strong>:</p>
+<pre class="r"><code>#-- Feature Hashing (tras aplicar lumping sobre funder y ward)
+# Podemos elegir el tamaño minimo (teorico) que permite reducir el ratio de colision entre valores hash
+tam_minimo &lt;- hash.size(datcompleto[, c(&quot;fe_funder&quot;, &quot;fe_ward&quot;)])
+tam_minimo</code></pre>
+<pre><code>## [1] 2048</code></pre>
+<p>La función nos indica que el tamaño mínimo es de 2048. A continuación, mediante la función <em>hashed.model.matrix</em> creamos la matriz <em>hash</em> correspondiente con la que indexar las categorías de las columnas <em>ward</em> y <em>funder</em>:</p>
+<pre class="r"><code>mat_hash   &lt;- hashed.model.matrix(~., datcompleto[, c(&quot;fe_funder&quot;, &quot;fe_ward&quot;)], tam_minimo, create.mapping = TRUE)
+
+# Comprobamos el ratio de colisión
+mean(duplicated(hash.mapping(mat_hash))) # 0.3520757</code></pre>
+<pre><code>## [1] 0.3520757</code></pre>
+<p>Comprobamos que el ratio de colisión obtenido no es demasiado alto (alrededor de 0.35). Una vez elaborada la matriz, debemos <strong>sustituir los categorías originales por su valor <em>hash</em> correspondiente</strong>, haciendo uso de la función <em>hash.mapping</em>, encargada de devolver la equivalencia entre cada categoría y su valor <em>hash</em>:</p>
+<pre class="r"><code># Sustituimos las columnas fe_funder y fe_ward por su valor hash correspondiente
+vector_hash &lt;- hash.mapping(mat_hash)
+mat_hash_dt &lt;- data.table(&quot;feature&quot; = names(vector_hash), 
+                          &quot;values&quot; = vector_hash)
+
+head(mat_hash_dt)</code></pre>
+<pre><code>##                    feature values
+## 1:           fe_fundernddp   1122
+## 2:           fe_wardmsindo   1392
+## 3: fe_fundervillagecouncil    331
+## 4:          fe_wardkighare    772
+## 5:          fe_funderdonor   1114
+## 6:       fe_wardurushimbwe   1273</code></pre>
+<p>Una vez obtenida la matriz de equivalencias, sustituimos en el <em>data.table</em> original:</p>
+<pre class="r"><code># Por defecto, hashed.model.matrix añade el nombre de columna a la variable
+# De forma que debemos incluirlo tambien tanto en fe_funder como en fe_ward
+# para hacer coincidir las categorias
+datcompleto[, fe_ward := paste0(&quot;fe_ward&quot;, fe_ward)]
+datcompleto[, fe_funder := paste0(&quot;fe_funder&quot;, fe_funder)]
+
+datcompleto[mat_hash_dt, fe_ward_hashed := i.values,  on = .(fe_ward = feature)]
+datcompleto[mat_hash_dt, fe_funder_hashed := i.values,  on = .(fe_funder = feature)]</code></pre>
+<p>Además, observamos cómo el número de “categorías” (valores <em>hash</em>) se reduce a 727 y 803 valores únicos:</p>
+<pre class="r"><code>#- Numero de valores unicos en fe_ward_hashed
+length(unique(datcompleto$fe_ward_hashed))   # 727 categoricas</code></pre>
+<pre><code>## [1] 727</code></pre>
+<pre class="r"><code>#- Numero de valores unicos en fe_funder_hashed
+length(unique(datcompleto$fe_funder_hashed)) # 803 categorias</code></pre>
+<pre><code>## [1] 803</code></pre>
+<pre class="r"><code># Eliminamos las columnas fe_ward y fe_funder
+datcompleto[, `:=`(fe_funder = NULL, fe_ward = NULL)]</code></pre>
+<p>Una vez reemplazadas las categorías, entrenamos un nuevo modelo:</p>
+<pre class="r"><code>my_model_9 &lt;- fit_random_forest(formula,
+                                train)</code></pre>
+<pre><code>[1] 0.8158418
+35.099 sec elapsed</code></pre>
+<p>En relación al conjunto de entrenamiento, el <em>accuracy</em> obtenido es similar al obtenido mediante <em>lumping</em> (0.8159764). A continuación, guardamos la <em>submission</em> y comprobamos su <em>score</em> en DrivenData:</p>
+<pre class="r"><code>my_sub_9 &lt;- make_predictions(my_model_9, test)
+# guardo submission
+fwrite(my_sub_9, file = &quot;./submissions/09_lumping_fe_y_hashing_sobre_funder_ward.csv&quot;)</code></pre>
+<table>
+<colgroup>
+<col width="72%"></col>
+<col width="13%"></col>
+<col width="14%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+</tbody>
+</table>
+<p>Sorprendentemente, aplicando <em>Feature Hashing</em> conseguimos mejorar el <em>score</em> del modelo de 0.8212 a 0.8214.</p>
+<p>Dado que 2048 es el tamaño mínimo que permite reducir el ratio de colisión entre valores <em>hash</em>, ¿Y si reducimos dicho tamaño a la mitad, 1024? ¿Mejorará el modelo al reducir el número de categogrías únicas?</p>
+<pre class="r"><code>mat_hash_2 &lt;- hashed.model.matrix(~., datcompleto[, c(&quot;fe_funder&quot;, &quot;fe_ward&quot;)], 2^10, create.mapping = TRUE, )
+mean(duplicated(hash.mapping(mat_hash_2))) # 0.5491329</code></pre>
+<pre><code>## 0.5491329</code></pre>
+<p>Lógicamente, al disminuir el tamaño el ratio de colisión aumenta (de 0.35 a 0.55, aproximadamente). Si entrenamos nuevamente el modelo con la nueva matriz <em>hash</em>:</p>
+<pre class="r"><code># Una vez realizados los mismos pasos que en el caso anterior...
+my_model_9 &lt;- fit_random_forest(formula, train)</code></pre>
+<pre><code>[1] 0.8162121
+35.918 sec elapsed</code></pre>
+<p>Aparentemente, el valor obtenido en el conjunto de entrenamiento mejora relativamente (de 0.815 a 0.816). Sin embargo, al predecir el conjunto <em>test</em>:</p>
+<pre class="r"><code>my_sub_9 &lt;- make_predictions(my_model_9, test)
+# guardo submission
+fwrite(my_sub_9, file = &quot;./submissions/09_lumping_fe_y_hashing_sobre_funder_ward_2_up_10.csv&quot;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Hashing (2048 hash size)</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="even">
+<td align="left">Hashing (1024 hash size)</td>
+<td align="center">0.8162121</td>
+<td align="center">0.8197</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="aplicando-frecuencias-absolutas" class="section level3">
+<h3>3.1.5 Aplicando frecuencias absolutas</h3>
+<p>Otra alternativa a <em>Feature Hashing</em> consiste en <strong>sustituir cada categoría en <em>fe_funder</em> y <em>fe_ward</em> por su frecuencia de aparición correspondiente</strong>, un tipo de codificación con el que obtuvo buenos resultados el grupo ganador y, por ello, debemos comprobar si mejora el <em>score</em> obtenido en <em>Feature Hashing</em> (0.8214):</p>
+<pre class="r"><code>#- fe_ward
+datcompleto[, fe_ward_freq := as.numeric(.N), by = fe_ward]
+length(unique(datcompleto[, fe_ward_freq]))  # 129 categorias</code></pre>
+<pre><code>## [1] 157</code></pre>
+<pre class="r"><code>#-  fe_funder
+datcompleto[, fe_funder_freq := as.numeric(.N), by = fe_funder]
+length(unique(datcompleto[, fe_funder_freq])) # 169 categorias</code></pre>
+<pre><code>## [1] 169</code></pre>
+<pre class="r"><code># Eliminamos las columnas originales
+datcompleto[, `:=`(fe_funder = NULL, fe_ward = NULL)]</code></pre>
+<p>Observamos que el número de categorías en ambas variables se ve reducido de 904 y 999 a 129 y 169 valores, respectivamente. A continuación, dividimos el conjunto de datos entre <em>train</em> y <em>test</em> y entrenamos un nuevo modelo:</p>
+<pre class="r"><code>my_model_10 &lt;- fit_random_forest(formula, train)</code></pre>
+<pre><code>[1] 0.8154882
+38.746 sec elapsed</code></pre>
+<p>En relación al <em>accuracy</em> obtenido en el entrenamiento, el porcentaje es ligeramente inferior con respecto al obtenido en el apartado anterior (0.8158418). No obstante, si realizamos la predicción del conjunto <em>test</em>:</p>
+<table>
+<colgroup>
+<col width="73%"></col>
+<col width="12%"></col>
+<col width="13%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+</tbody>
+</table>
+<p>Comprobamos que <strong>sustituyendo las categorías en <em>fe_ward</em> y <em>fe_funder</em> por sus frecuencias absolutas (en lugar de aplicar <em>FeatureHashing</em>), el <em>score</em> obtenido aumenta de 0.8214 a 0.8216</strong>.</p>
+</div>
+<div id="aplicando-target-encoding" class="section level3">
+<h3>3.1.6 Aplicando Target Encoding</h3>
+</div>
+<div id="empleando-la-media" class="section level3">
+<h3>3.1.6.1 Empleando la media</h3>
+<p>Otra técnica propuesta para la codificación de <em>fe_ward</em> y <em>fe_funder</em> consiste en <strong>reemplazar cada categoría por la agregación de la variable objetivo</strong>, reemplazando las variables objetivo por valores numéricos (0, 1 y 2) y sustituir cada categoría en <em>fe_ward</em> y <em>fe_funder</em> por el promedio de dicha variable. A modo de ejemplo:</p>
+<pre><code>   student grades grades_mean_by_student
+1:   Marie      0                   0.75 = (0 + 0 + 1 + 2 / 4)
+2:   Marie      0                   0.75
+3:  Pierre      1                   1.00
+4:   Louis      2                   1.75
+5:   Louis      2                   1.75
+6:   Marie      1                   0.75
+7:   Marie      2                   0.75
+8:   Louis      2                   1.75
+9:   Louis      1                   1.75</code></pre>
+<p>Para aplicar <em>target_encoding</em>, recuperamos únicamente las variables categóricas <em>fe_ward</em> y <em>fe_funder</em>:</p>
+<pre class="r"><code># Recuperamos las columnas categoricas
+datcat_df &lt;- as.data.frame(datcompleto %&gt;% select(fe_funder, fe_ward))</code></pre>
+<p>En muchas ocasiones, se recomienda añadir un valor de “ruido aleatorio” a las columnas del conjunto de entrenamiento por lo que separaremos nuevamente <em>datcompleto</em> en entrenamiento y prueba:</p>
+<pre class="r"><code># Dividimos datcompleto en entrenamiento y prueba
+train &lt;- datcompleto[c(1:fila_test-1),]
+train$status_group &lt;- vector_status_group
+train$status_group &lt;- as.factor(train$status_group)
+
+test &lt;- datcompleto[c(fila_test:nrow(datcompleto)),]</code></pre>
+<p>A continuación, de cara la codificación <strong>convertimos la variable objetivo en formato numérico</strong>:</p>
+<pre class="r"><code># 0: functional ;  1: functional needs repair ; 2: non functional
+train[, status_group := ifelse(status_group == &quot;functional&quot;, 0, 
+                               ifelse(status_group == &quot;functional needs repair&quot;, 1
+                                      , 2))]</code></pre>
+<p>Para realizar <em>Target Encoding</em>, empleamos la función <em>build_target_encoding</em> disponible en el paquete <em>DataPreparation</em>, sobre la que debemos indicar el conjunto de entrenamiento, el nombre las columnas a codificar, la variable objetivo, así como la función de agregación (en este caso la media):</p>
+<pre class="r"><code>#-- Target encoding (mean)
+dat_encoded &lt;- build_target_encoding(train, 
+                                      cols_to_encode = names(datcat_df),
+                                      target_col = &quot;status_group&quot;,
+                                      functions = &quot;mean&quot;,
+                                      verbose = TRUE)</code></pre>
+<pre><code>## [1] &quot;build_target_encoding: Start to compute encoding for target_encoding according to col: status_group.&quot;</code></pre>
+<p>Dicha función devuelve una lista con la correspondencia entre cada categoría y su valor codificado mediante <em>Target Encoding</em>. Veamos un ejemplo:</p>
+<pre class="r"><code># Creamos un data.table para observar los resultados obtenidos tras aplicar Target Encoding
+dat_encoded_dt          &lt;- as.data.table(dat_encoded)</code></pre>
+<pre><code>## Warning in as.data.table.list(dat_encoded): Item 1 has 1872 rows but longest
+## item has 2090; recycled with remainder.</code></pre>
+<pre class="r"><code>names(dat_encoded_dt)   &lt;- stri_replace_all_regex(names(dat_encoded_dt), 
+                                                  pattern = &quot;.*\\.&quot;,
+                                                  replacement = &quot;&quot;)
+
+dat_encoded_dt[1, ] # Veamos un ejemplo</code></pre>
+<pre><code>##    fe_funder status_group_mean_by_fe_funder  fe_ward
+## 1:     roman                      0.3236364 mundindi
+##    status_group_mean_by_fe_ward
+## 1:                         0.75</code></pre>
+<p>En la salida anterior, <strong>observamos que la empresa <em>funder</em> presenta un promedio de 0.32 con respecto a la variable objetivo</strong>, esto es, <strong>el estado de las bombas de agua creadas por dicha empresa, de media, es “no funcional” (0)</strong>. Por el contrario, en la localidad de <em>mundindi</em> las bombas de agua presentan un promedio más cercano a 1 (0.75).</p>
+<p>Tras obtener el <em>Target Encoding</em> de cada categoría, <strong>debemos sustituir el valor de cada categoría por su agregación correspondiente</strong>. tanto en el conjunto <em>train</em> como <em>test</em>. Para ello, empleamos la función <em>target_encode</em>:</p>
+<pre class="r"><code>train &lt;- target_encode(train, target_encoding = dat_encoded)</code></pre>
+<pre><code>## [1] &quot;target_encode: Start to encode columns according to target.&quot;</code></pre>
+<pre class="r"><code>test &lt;- target_encode(test, target_encoding = dat_encoded)</code></pre>
+<pre><code>## [1] &quot;target_encode: Start to encode columns according to target.&quot;</code></pre>
+<pre class="r"><code>sum(is.na(test)) # 21 valores missing en status_group_by_fe_funder</code></pre>
+<pre><code>## [1] 259</code></pre>
+<p>En el caso del conjunto <em>test</em>, detectamos valores <em>missing</em> en la columna <em>status_group_by_fe_funder</em>. Como consecuencia, y dado que son pocos valores, se tomó la decisión de reeemplazarlos directamente por el valor medio:</p>
+<pre class="r"><code># Reemplazamos los valores nulos por la media
+media &lt;- mean(test[, status_group_mean_by_fe_funder], na.rm = TRUE)
+setnafill(test, cols=&quot;status_group_mean_by_fe_funder&quot;, fill = media)</code></pre>
+<p>A continuación, añadimos un valor de ruido al conjunto <em>train</em>, además de recodificar la variable objetivo y eliminar las columnas <em>fe_ward</em> y <em>fe_funder</em> originales:</p>
+<pre class="r"><code># Añadimos ruido a los datos train
+cat_cols &lt;- paste0(&#39;status_group_mean_by_&#39;,names(datcat_df))
+
+train[, cat_cols] &lt;- train[, lapply(.SD, 
+                                    function(x) x * rnorm(length(x), mean = 1, 
+                                    sd = 0.05)), .SDcols = cat_cols]
+
+# Recodificamos la variable objetivo
+train[, status_group := ifelse(status_group == 0, &quot;functional&quot;, 
+                               ifelse(status_group == 1, &quot;functional needs repair&quot;
+                                      , &quot;non functional&quot;))]
+
+# Eliminamos las variables originales
+train[, `:=`(fe_funder = NULL, fe_ward = NULL)]
+test[, `:=`(fe_funder = NULL, fe_ward = NULL)]</code></pre>
+<p>Finalmente, entrenamos el modelo y realizamos las predicciones sobre el conjunto <em>test</em>:</p>
+<pre class="r"><code>#-- Modelo
+formula   &lt;- as.formula(&quot;status_group~.&quot;)
+# 0.8154377
+my_model_11 &lt;- fit_random_forest(formula,
+                                 train)</code></pre>
+<pre><code>[1] 0.8154377
+39.044 sec elapsed</code></pre>
+<pre class="r"><code>my_sub_11 &lt;- make_predictions(my_model_11, test)
+
+# guardo submission
+fwrite(my_sub_11, file = &quot;./submissions/11_lumping_fe_sobre_funder_ward_target_encoding_media.csv&quot;)</code></pre>
+<table>
+<colgroup>
+<col width="77%"></col>
+<col width="10%"></col>
+<col width="11%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward</td>
+<td align="center">0.8154377</td>
+<td align="center">0.8164</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="empleando-la-suma" class="section level3">
+<h3>3.1.6.2 Empleando la suma</h3>
+<p>Revisando la documentación de la función <em>build_target_encoding</em>, me llamó la atención un ejemplo propuesto en el que se emplea la función la agregación <em>sum</em> en lugar de la media. A modo de ejemplo, supongamos el siguiente <em>data.table</em> con diferentes bombas de agua:</p>
+<pre><code>     fe_funder    fe_ward   status_group
+1:       roman   mundindi              0
+2:       other      natta              1
+3:      unicef      other              1
+4:      unicef      natta              2
+5:       other   mundindi              0
+
+0: non functional ;  1: functional needs repair ; 2: functional</code></pre>
+<p>¿Y si en lugar de aplicar la media <strong>realizamos la suma de los pesos de cada variable objetivo</strong>? Es decir, dado que cada categoría tiene un valor asignado (0, 1 o 2), una posibilidad sería <strong>calcular el total de la variable objetivo por cada categoría</strong>. De este modo:</p>
+<pre><code>     fe_funder    fe_ward   status_group     fe_funder_sum     fe_ward_sum   
+1:       roman   mundindi              0                 0       0 + 0 = 0   
+2:       other      natta              1         1 + 0 = 1       1 + 2 = 3
+3:      unicef      other              1         1 + 2 = 3               1
+4:      unicef      natta              2         1 + 2 = 3       1 + 2 = 3
+5:       other   mundindi              0         1 + 0 = 1       0 + 0 = 0
+
+0: non functional ;  1: functional needs repair ; 2: functional</code></pre>
+<p>Podemos comprobar como empresas/entidades como <em>unicef</em>, así como regiones como es el caso de <em>natta</em> presentan un mayor número de bombas “defectuosas”, lo cual se refleja en la suma total. No obstante, un mayor valor de la suma no implica necesariamente un mayor riesgo en las bombas de agua. Un ejemplo sería el siguiente:</p>
+<pre><code>     fe_funder   status_group     fe_funder_sum   
+1:       roman              2                 2 
+2:      unicef              1         1 + 1 = 2
+3:      unicef              1         1 + 1 = 2
+
+0: non functional ;  1: functional needs repair ; 2: functional</code></pre>
+<p>En el caso anterior, la suma de las variables objetivo en ambos valores de <em>fe_funder</em> es el mismo (2). Sin embargo, mientras que en el caso de <em>unicef</em> las bombas continuan funcionando (aunque necesiten reparación), en el caso de <em>roman</em>, la única bomba que presenta no funciona. Por tanto, podemos asegurar que se trata de una representación con muy poca interpretabilidad.</p>
+<p>No obstante, <strong>probaremos con un nuevo modelo</strong>, comprobando si los resultandos mejoran:</p>
+<pre class="r"><code>#-- Target encoding (sum)
+dat_encoded &lt;- build_target_encoding(train, 
+                                      cols_to_encode = names(datcat_df),
+                                      target_col = &quot;status_group&quot;,
+                                      functions = &quot;sum&quot;,
+                                      verbose = TRUE)</code></pre>
+<table>
+<colgroup>
+<col width="77%"></col>
+<col width="10%"></col>
+<col width="11%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward</td>
+<td align="center">0.8154377</td>
+<td align="center">0.8164</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (suma) sobre funder + ward</td>
+<td align="center">0.814899</td>
+<td align="center">0.8215</td>
+</tr>
+</tbody>
+</table>
+<p>Curiosamente, el resultado obtenido <strong>mejora con respecto al cálculo mediante la media, aunque sigue siendo mejor (por poca diferencia), la codificación por frecuencias absolutas</strong>.</p>
+</div>
+</div>
+<div id="aplicando-word-embedding" class="section level2">
+<h2>3.1.7 Aplicando Word Embedding</h2>
+<p>Sin duda, uno de los grandes avances en el campo de la lingüística han sido las técnicas de <em>Word Embedding</em>, que permiten <strong>la representación vectorial (n-dimensional) de una palabra o <em>token</em></strong>. Por ello, de cara a la práctica se planteó la posibilidad de <strong>realizar una representación vectorial de las diferentes categorías en las columnas <em>fe_ward</em> y <em>fe_funder</em></strong>, con el objetivo de observar si la precisión del modelo mejora o no.</p>
+<p>Para ello, haremos uso de dos paquetes:</p>
+<ol style="list-style-type: decimal">
+<li><p><em>embed</em>: permite la creación de modelos <em>word-embedding</em>, mediante el uso de la librería <em>TensorFlow</em>.</p></li>
+<li><p><em>recipes</em>: pertenciente al paquete <em>tidymodels</em>, se emplea fundamentalmente para el preprocesamiento de datos, mediante el uso de “recetas” definidas de forma secuencial por medios de <em>pipelines</em>.</p></li>
+</ol>
+<p>En primer lugar, y una vez aplicado <em>lumping</em> sobre <em>ward</em> y <em>funder</em>, <strong>dividimos nuevamente los datos en entrenamiento y test</strong>:</p>
+<pre class="r"><code># 1. Comprobamos que las variables categoricas estan codificadas como factor
+emb_cols &lt;- c(&quot;fe_ward&quot;, &quot;fe_funder&quot;)
+datcompleto[,(emb_cols):= lapply(.SD, as.factor), .SDcols = emb_cols]
+
+# Dividimos en train y test
+train &lt;- datcompleto[c(1:fila_test-1),]
+train$status_group &lt;- vector_status_group
+train$status_group &lt;- as.factor(train$status_group)
+
+test &lt;- datcompleto[c(fila_test:nrow(datcompleto)),]</code></pre>
+<p>Una vez dividido el conjunto de datos, elaboramos el modelo <em>embedded</em>. Para ello, mediante la función <em>recipe</em> elaboramos una “receta” para la transformación de variables, concretamente sobre <em>fe_ward</em>, <em>fe_funder</em> y <em>status_group</em>. Sobre dicha receta o fórmula aplicamos la función <em>step_embed</em> del paquete <em>embed</em>, con la que realizar la transformación <em>Word Embedding</em>. Por defecto, el número de dimensiones es de 2, por lo que probaremos inicialmente con dicho valor:</p>
+<pre class="r"><code># 2. Elaboramos el modelo embedded (empezando con dimensionalidad 2)
+emb_cols_target &lt;- c(emb_cols, &quot;status_group&quot;)
+
+base_recipe &lt;- recipe(status_group ~ ., train[, ..emb_cols_target])
+for(feat in emb_cols){
+  base_recipe &lt;- base_recipe %&gt;% 
+    step_embed({{feat}},
+                num_terms = 2,
+                outcome = vars(status_group),
+                options = embed_control(epochs = 5, validation_split = 0.2)
+    )
+}</code></pre>
+<p>Finalmente, una vez elaborada la “receta” para la transformación de ambas columnas, <strong>la aplicamos inicialmente sobre el conjunto <em>train</em> y posteriormente sobre el conjunto <em>test</em></strong>, haciendo uso de las funciones <em>prep</em> y <em>bake</em>, respectivamente:</p>
+<pre class="r"><code># 3. Creacion de las columnas Word EMbeddings (train y test)
+train_prepped &lt;- prep(base_recipe, train[, ..emb_cols_target])
+test_prepped &lt;-  bake(train_prepped, test[, ..emb_cols])
+
+train_final  &lt;- cbind(as.data.table(juice(train_prepped)),
+                      train[, setdiff(names(train), emb_cols_target), with = FALSE]
+                )
+
+test_final  &lt;- cbind(test_prepped,
+                     test[, setdiff(names(test), emb_cols), with = FALSE]
+                )
+# Echemos un vistazo a las columnas transformadas
+train_final[1, c(&quot;fe_ward_embed_1&quot;, &quot;fe_ward_embed_2&quot;, &quot;fe_funder_embed_1&quot;, &quot;fe_funder_embed_2&quot;)]</code></pre>
+<pre><code>##    fe_ward_embed_1 fe_ward_embed_2 fe_funder_embed_1 fe_funder_embed_2
+## 1:    -0.002076114      0.02586615        0.03580488        0.01154404</code></pre>
+<p>Como podemos comprobar, cada categoría se transforma en dos columnas con su representación bi-dimensional correspondiente ¿Mejorará el modelo si aplicamos Word Embedding sobre <em>fe_ward</em> y <em>fe_funder</em>?</p>
+<pre class="r"><code># Train
+my_model_12 &lt;- fit_random_forest(formula, train_final)
+
+# Predicciones
+my_sub_12  &lt;- make_predictions(my_model_12, test_final)</code></pre>
+<table>
+<colgroup>
+<col width="77%"></col>
+<col width="10%"></col>
+<col width="11%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward</td>
+<td align="center">0.8154377</td>
+<td align="center">0.8164</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (suma) sobre funder + ward</td>
+<td align="center">0.814899</td>
+<td align="center">0.8215</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + word embed sobre funder y ward (dim = 2)</td>
+<td align="center">0.8155724</td>
+<td align="center">0.8204</td>
+</tr>
+</tbody>
+</table>
+<p>Creando un modelo <em>Word Embedding</em> sobre ambas variables, el resultado no parece mejorar ¿Y si aumentamos el número de dimensiones en la representación vectorial? Normalmente, los modelos <em>Word Embedding</em> suelen emplear decenas e incluso cientas de dimensiones en su representación.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Word Embedding (Dim = 2)</td>
+<td align="center">0.8155724</td>
+<td align="center">0.8204</td>
+</tr>
+<tr class="even">
+<td align="left">Word Embedding (Dim = 5)</td>
+<td align="center">0.8150337</td>
+<td align="center">0.8192</td>
+</tr>
+<tr class="odd">
+<td align="left">Word Embedding (Dim = 10)</td>
+<td align="center">0.8145286</td>
+<td align="center">0.8157</td>
+</tr>
+</tbody>
+</table>
+<p>Pese a aumentar el número de dimensiones (y con ello la complejidad), la precisión del modelo disminuye.</p>
+<p><strong>Conclusión</strong>: dado el mejor <em>score</em> obtenido, elegimos como mejor alternativa <strong>la transformación por frecuencias absolutas</strong>.</p>
+</div>
+<div id="aplicando-transformación-por-frecuencias-absolutas-al-resto-de-variables-categóricas" class="section level2">
+<h2>3.1.8 Aplicando transformación por frecuencias absolutas al resto de variables categóricas</h2>
+<p>A la vista de las transformaciones anteriores, la que mejor resultado ha obtenido ha sido mediante frecuencias absolutas. No obstante, y dado que solo las hemos aplicado sobre <em>fe_ward</em> y <em>fe_funder</em> ¿Y si la aplicamos sobre el resto de variables categóricas, concretamente de tipo carácter?</p>
+<p>Para ello, y una vez aplicado <em>lumping</em> sobre <em>ward</em> y <em>funder</em>, <strong>realizamos la imputación de las variables categóricas (character) por sus correspondientes frecuencias absolutas</strong>. Inicialmente, almacenamos en una variable los nombres de las columnas a imputar:</p>
+<pre class="r"><code>#-- Imputacion de las variables categoricas por sus frecuencias absolutas
+cat_cols &lt;- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])</code></pre>
+<p>Antes de realizar la imputación, guardamos en una variable el número de valores únicos de cada columna:</p>
+<pre class="r"><code>#   Antes de imputar
+freq_antes_fe &lt;- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))</code></pre>
+<p>A continuación, <strong>sustituimos el valor de cada columna por su correspondiente frecuencia absoluta, además de eliminar las columnas originales</strong>:</p>
+<pre class="r"><code># Sustitucion de cada valor por su frecuencia absoluta
+for (cat_col in cat_cols) {
+  datcompleto[, paste0(&quot;fe_&quot;, cat_col) := as.numeric(.N), by = cat_col]
+}
+# fe_funder y fe_ward aparecen como fe_fe_ward y fe_fe_funder
+# por lo que lo reemplazamos por fe_ward y fe_funder
+names(datcompleto) &lt;- stri_replace_all_fixed(names(datcompleto),
+                                             &quot;fe_fe_&quot;, &quot;fe_&quot;)
+
+# Eliminamos las columnas originales
+for (cat_col in cat_cols) {
+  datcompleto[, paste(cat_col) := NULL]
+}</code></pre>
+<p>Una vez transformadas las columnas, creamos una nueva variable con el número de valores únicos de cada columna:</p>
+<pre class="r"><code>new_cat_cols &lt;- paste0(&quot;fe_&quot;, stri_replace_all_fixed(cat_cols, &quot;fe_&quot;, &quot;&quot;))
+
+freq_despues_fe &lt;- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
+
+#-- Solo cambian funder, ward y lga en relacion al numero de categorias
+data.table(rbind(freq_antes_fe, freq_despues_fe), keep.rownames = TRUE)</code></pre>
+<pre><code>##                 rn basin region lga scheme_management extraction_type
+## 1:   freq_antes_fe     9     21 125                13              18
+## 2: freq_despues_fe     9     21 120                13              18
+##    extraction_type_group extraction_type_class management management_group
+## 1:                    13                     7         12                5
+## 2:                    13                     7         12                5
+##    payment water_quality quality_group quantity source source_type source_class
+## 1:       7             8             6        5     10           7            3
+## 2:       7             8             6        5     10           7            3
+##    waterpoint_type waterpoint_type_group funder ward fe_funder fe_ward
+## 1:               7                     6   2141 2098      2110    2096
+## 2:               7                     6    155  148       155     148</code></pre>
+<p>Analizando la tabla resultante, podemos comprobar como tan solo <em>funder</em>, <em>ward</em> y <em>lga</em> se ven reducidos en cuanto al número de valores únicos se refiere. No obstante, veamos los resultados obtenidos tras entrenar el nuevo modelo:</p>
+<pre class="r"><code>my_model_13 &lt;- fit_random_forest(formula, train)
+
+my_sub_13   &lt;- make_predictions(my_model_13, test)</code></pre>
+<table>
+<colgroup>
+<col width="77%"></col>
+<col width="10%"></col>
+<col width="11%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward</td>
+<td align="center">0.8154377</td>
+<td align="center">0.8164</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (suma) sobre funder + ward</td>
+<td align="center">0.814899</td>
+<td align="center">0.8215</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + word embed sobre funder y ward (dim = 2)</td>
+<td align="center">0.8155724</td>
+<td align="center">0.8204</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) sobre funder y ward + freq. abs. cat.</td>
+<td align="center">0.8157071</td>
+<td align="center">0.8226</td>
+</tr>
+</tbody>
+</table>
+<p>Codificando las variables categóricas por sus frecuencias absolutas <strong>mejoramos los resultados obtenidos en el conjunto <em>test</em></strong>, pasando de 0.8216 a 0.8226.</p>
+</div>
+<div id="añadir-las-variables-scheme_name-e-installer" class="section level2">
+<h2>3.1.9 Añadir las variables scheme_name e installer</h2>
+<p>Hasta ahora, hemos trabajado con variables categóricas que tuviesen menos de 2100 valores únicos. Sin embargo, existen variables con un mayor número de categorías como <em>scheme_name</em>, <em>installer</em>, <em>subvillage</em> y <em>wpt_name</em>. Con el propósito de seguir un orden, <strong>empezamos añadiendo a nuestro dataset aquellas variables con menos de 10000 categorías, esto es, <em>scheme_name</em> e <em>installer</em></strong>.</p>
+<p>Sobre dichos campos aplicaremos exactamente los mismos pasos que los realizados hasta ahora con las variables categóricas (y con los que se han obtenido mejores resultados):</p>
+<ol style="list-style-type: decimal">
+<li><p>Limpieza de <em>strings</em> (letras a minúscula + eliminación de espacios en blanco + eliminación de signos de puntuación)</p></li>
+<li><p>Aplicar <em>lumping</em> sobre la mediana en la proporción de apariciones</p></li>
+<li><p>Reemplazar las categorías por sus frecuencias aboslutas</p></li>
+</ol>
+<pre class="r"><code>#-- fe_scheme_name
+#   Numero de categorías antes de aplicar clean_text
+length(unique(datcompleto[, scheme_name]))</code></pre>
+<pre><code>## [1] 2869</code></pre>
+<pre class="r"><code>#-- fe_installer
+#   Numero de categorías antes de aplicar clean_text
+length(unique(datcompleto[, installer]))</code></pre>
+<pre><code>## [1] 2411</code></pre>
+<pre class="r"><code>cols &lt;- c(&#39;installer&#39;, &#39;scheme_name&#39;)
+datcompleto[ , paste0(&#39;fe_&#39;,cols) := lapply(.SD, clean_text), .SDcols = cols]
+rm(cols)
+
+#   Numero de categorías tras aplicar clean_text
+length(unique(datcompleto[, fe_scheme_name]))</code></pre>
+<pre><code>## [1] 2615</code></pre>
+<pre class="r"><code>length(unique(datcompleto[, fe_installer]))</code></pre>
+<pre><code>## [1] 2069</code></pre>
+<p>Como podemos observar en las salidas anteriores, el número de categorías se ha visto reducido en ambas variables. A continuación, aplicamos <em>lumping</em> sobre dichas columnas:</p>
+<pre class="r"><code>#-- fe_scheme_name
+summary(c(prop.table(table(datcompleto[, fe_scheme_name]))))</code></pre>
+<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+## 0.0000135 0.0000269 0.0000808 0.0003824 0.0002020 0.4748552</code></pre>
+<pre class="r"><code>#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 8.1e-05, aprox.)
+datcompleto[, fe_scheme_name := fct_lump_prop(datcompleto[,fe_scheme_name], 8.1e-05, other_level = &quot;other&quot;)]
+datcompleto$fe_scheme_name &lt;- as.character(datcompleto$fe_scheme_name)
+
+datcompleto[, scheme_name := NULL]
+# Pasamos de 2615 a 1205
+length(unique(datcompleto[, fe_scheme_name]))</code></pre>
+<pre><code>## [1] 1205</code></pre>
+<pre class="r"><code>#-- fe_installer
+summary(c(prop.table(table(datcompleto[, fe_installer]))))</code></pre>
+<pre><code>##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+## 1.347e-05 1.347e-05 1.347e-05 4.833e-04 8.081e-05 2.934e-01</code></pre>
+<pre class="r"><code>#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 2e-05, aprox.)
+datcompleto[, fe_installer := fct_lump_prop(datcompleto[,fe_installer], 2e-05, other_level = &quot;other&quot;)]
+datcompleto$fe_installer &lt;- as.character(datcompleto$fe_installer)
+
+datcompleto[, installer := NULL]
+# Pasamos de 2069 a 1029 categorias
+length(unique(datcompleto[, fe_installer]))</code></pre>
+<pre><code>## [1] 1029</code></pre>
+<p>Finamente, una vez reducidas ambas categorías al 50 %, aproximadamente, <strong>realizamos la transformación por frecuencias absolutas</strong>:</p>
+<pre class="r"><code>#-- Imputacion de las variables categoricas por sus frecuencias absolutas
+cat_cols &lt;- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
+
+#   Antes de imputar
+freq_antes_fe &lt;- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
+
+for (cat_col in cat_cols) {
+  datcompleto[, paste0(&quot;fe_&quot;, cat_col) := as.numeric(.N), by = cat_col]
+}
+names(datcompleto) &lt;- stri_replace_all_fixed(names(datcompleto), &quot;fe_fe_&quot;, &quot;fe_&quot;)
+
+for (cat_col in cat_cols) {
+  datcompleto[, paste(cat_col) := NULL]
+}
+new_cat_cols &lt;- paste0(&quot;fe_&quot;, stri_replace_all_fixed(cat_cols, &quot;fe_&quot;, &quot;&quot;))
+
+#  Despues de imputar
+freq_despues_fe &lt;- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
+
+data.table(rbind(freq_antes_fe[c(&quot;fe_scheme_name&quot;, &quot;fe_installer&quot;)], 
+                 freq_despues_fe[c(&quot;fe_scheme_name&quot;, &quot;fe_installer&quot;)]))</code></pre>
+<pre><code>##    fe_scheme_name fe_installer
+## 1:           1205         1029
+## 2:            126          164</code></pre>
+<p>Comprobamos como el número de categorías en <em>scheme_name</em> e <em>installer</em> ha disminuido a 126 y 164 valores únicos, respectivamente.</p>
+<p>Una vez depuradas ambas columnas, lanzamos el nuevo modelo:</p>
+<pre class="r"><code>my_model_14 &lt;- fit_random_forest(formula, train)
+
+my_sub_14 &lt;- make_predictions(my_model_15, test)</code></pre>
+<table>
+<colgroup>
+<col width="70%"></col>
+<col width="14%"></col>
+<col width="15%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 10000) fe anteriores + lumping (mediana) + freq. abs. cat.</td>
+<td align="center">0.8158081</td>
+<td align="center">0.8231</td>
+</tr>
+</tbody>
+</table>
+<p>Aparentemente, incluir ambas variables obtiene un mejor resultado (de 0.8226 a 0.8231). No obstante, ¿Merece la pena incluir ambas variables? Es decir, ¿Mejoraría el modelo si descartamos una de ellas? Veamos:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Empleando tanto scheme_name como installer</td>
+<td align="center">0.8158081</td>
+<td align="center">0.8231</td>
+</tr>
+<tr class="even">
+<td align="left">Empleando unicamente installer</td>
+<td align="center">0.8160774</td>
+<td align="center">0.8211</td>
+</tr>
+<tr class="odd">
+<td align="left">Empleando unicamente scheme_name</td>
+<td align="center">0.8161616</td>
+<td align="center">0.8239</td>
+</tr>
+</tbody>
+</table>
+<p>Curiosamente, si descartamos la variable <em>installer</em>, el <em>score</em> del modelo mejora de 0.8231 a 0.8239. Por tanto, en lugar en emplear ambas columnas <strong>añadiremos únicamente <em>scheme_name</em></strong>:</p>
+<table>
+<colgroup>
+<col width="77%"></col>
+<col width="10%"></col>
+<col width="11%"></col>
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left"></th>
+<th align="center">Train.accuracy</th>
+<th align="center">Data.Submission</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Mejor accuracy en el concurso</td>
+<td align="center">-</td>
+<td align="center">0.8180</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + fe_funder + fe_ward</td>
+<td align="center">0.8149832</td>
+<td align="center">0.8197</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (mediana)</td>
+<td align="center">0.8159764</td>
+<td align="center">0.8212</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)</td>
+<td align="center">0.8146633</td>
+<td align="center">0.8203</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)</td>
+<td align="center">0.8159259</td>
+<td align="center">0.8196</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward</td>
+<td align="center">0.8158418</td>
+<td align="center">0.8214</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward</td>
+<td align="center">0.8154882</td>
+<td align="center">0.8216</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward</td>
+<td align="center">0.8154377</td>
+<td align="center">0.8164</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (suma) sobre funder + ward</td>
+<td align="center">0.814899</td>
+<td align="center">0.8215</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) + word embed sobre funder y ward (dim = 2)</td>
+<td align="center">0.8155724</td>
+<td align="center">0.8204</td>
+</tr>
+<tr class="odd">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 2100) fe anteriores + lumping (mediana) sobre funder y ward + freq. abs. cat.</td>
+<td align="center">0.8157071</td>
+<td align="center">0.8226</td>
+</tr>
+<tr class="even">
+<td align="left">Num + Cat (&gt; 1 &amp; &lt; 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)</td>
+<td align="center">0.8161616</td>
+<td align="center">0.8239</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 

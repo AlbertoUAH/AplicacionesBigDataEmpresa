@@ -96,23 +96,6 @@ datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
 
 datcompleto[, ward := NULL]
 
-#-- Imputacion de las variables categoricas por sus frecuencias absolutas, salvo funder y ward
-cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])[c(-19,-20)]
-
-#   Antes de imputar
-freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
-
-for (cat_col in cat_cols) {
-  datcompleto[, paste0("fe_", cat_col) := as.numeric(.N), by = cat_col]
-}
-names(datcompleto) <- stri_replace_all_fixed(names(datcompleto),
-                                             "fe_fe_", "fe_")
-
-for (cat_col in cat_cols) {
-  datcompleto[, paste(cat_col) := NULL]
-}
-new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
-
 #-- Embeddings
 #-- Aplicamos word embedding sobre funder y ward
 
@@ -128,18 +111,17 @@ test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 
 # 2. Elaboramos el modelo embedded (empezando con dimensionalidad 2)
 emb_cols_target <- c(emb_cols, "status_group")
-base_recipe <- recipes::recipe(status_group ~ ., train[, ..emb_cols_target])
+base_recipe <- recipe(status_group ~ ., train[, ..emb_cols_target])
 for(feat in emb_cols){
   base_recipe <- base_recipe %>% 
-    embed::step_embed({{feat}},
-                      num_terms = 2,
-                      outcome = vars(status_group),
-                      options = embed_control(epochs = 5, validation_split = 0.2)
+    step_embed({{feat}},
+                num_terms = 2,
+                outcome = vars(status_group),
+                options = embed_control(epochs = 5, validation_split = 0.2)
     )
 }
-base_recipe
 
-# 4. Creacion del modelo embedded
+# 3. Creacion del modelo embedded
 train_prepped <- prep(base_recipe, train[, ..emb_cols_target])
 test_prepped <-  bake(train_prepped, test[, ..emb_cols])
 
@@ -157,18 +139,18 @@ formula   <- as.formula("status_group~.")
 cl <- makeCluster(detectCores())
 registerDoParallel(cl)
 
-# Con 2 terminos:  0.8161111
-# Con 5 terminos:  0.8142593
-# Con 10 terminos: 0.8142424
+# Con 2 terminos:  0.8155724
+# Con 5 terminos:  0.8150337
+# Con 10 terminos: 0.8145286
 my_model_14 <- fit_random_forest(formula,
                                  train_final)
 
 my_sub_14 <- make_predictions(my_model_14, test_final)
 # guardo submission
 fwrite(my_sub_14, file = "./submissions/14_lumping_fe_sobre_funder_ward_y_word_embed_dim2_solo_funder_ward_resto_freq_abs.csv")
-# Con 2 terminos: 0.8207
-# Con 5 terminos: 0.8195
-# Con 10 terminos: 0.8168
+# Con 2 terminos:  0.8204
+# Con 5 terminos:  0.8192
+# Con 10 terminos: 0.8157
 
 #-- Conclusion: aplicando frecuencias absolutas sobre las variables cartegoricas ha permitido mejorar considerablemente el modelo
 #--- Pintar importancia de variables
@@ -178,9 +160,9 @@ impor_df$vars <- rownames(impor_df)
 rownames(impor_df) <- NULL
 
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8160774, 0.8154882, 0.8157071, 0.8086364,
-                                             0.8152694, 0.8161111), 
+                                             0.8152694, 0.8155724), 
                         "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8213, 0.8216, 0.8226, 0.8110,
-                                              0.8185, 0.8207),
+                                              0.8185, 0.8204),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",

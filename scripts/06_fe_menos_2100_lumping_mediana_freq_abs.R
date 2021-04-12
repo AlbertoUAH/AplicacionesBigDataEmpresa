@@ -117,8 +117,7 @@ test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 
 formula   <- as.formula("status_group~.")
 # 0.8154882
-my_model_10 <- fit_random_forest(formula,
-                                 train)
+my_model_10 <- fit_random_forest(formula, train)
 
 my_sub_10 <- make_predictions(my_model_10, test)
 # guardo submission
@@ -138,14 +137,14 @@ ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
   theme_bw()
 ggsave('./charts/10_lumping_fe_freq_abs_sobre_funder_ward.png')
 
-knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8160774, 0.8154882), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8213, 0.8216),
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8158418, 0.8154882), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + hashed sobre funder + ward (mediana)",
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping + freq. abs. sobre funder + ward")),
              align = 'c')
 

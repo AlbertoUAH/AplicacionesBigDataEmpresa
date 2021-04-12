@@ -97,17 +97,17 @@ datcompleto[, ward := NULL]
 
 #-- Feature hashing
 # Podemos elegir el tamaño minimo (teorico) que permite reducir el ratio de colision entre valores hash
-tam_minimo <- hash.size(datcompleto[, c("lga")])
+tam_minimo <- hash.size(datcompleto[, c("fe_funder", "fe_ward")])
 mat_hash   <- hashed.model.matrix(~., datcompleto[, c("fe_funder", "fe_ward")], tam_minimo, create.mapping = TRUE)
-mean(duplicated(hash.mapping(mat_hash))) # 0.9327378
+mean(duplicated(hash.mapping(mat_hash))) # 0.3520757
 
 # ¿Y si utilizamos 2^10?
-mat_hash_2 <- hashed.model.matrix(~., datcompleto[, c("fe_funder", "fe_ward")], 2^12, create.mapping = TRUE, )
-mean(duplicated(hash.mapping(mat_hash_2))) # 0.5491329 Coincide 2 ^ 10, y 0.2138728 Coincide con 2 ^ 12
-rm(mat_hash)
+mat_hash_2 <- hashed.model.matrix(~., datcompleto[, c("fe_funder", "fe_ward")], 2^10, create.mapping = TRUE, )
+mean(duplicated(hash.mapping(mat_hash_2))) # 0.5491329 Coincide 2 ^ 10
+rm(mat_hash_2)
 
 # Sustituimos las columnas fe_funder y fe_ward por su valor hash correspondiente
-vector_hash <- hash.mapping(mat_hash_2)
+vector_hash <- hash.mapping(mat_hash)
 mat_hash_dt <- data.table("feature" = names(vector_hash), 
                           "values" = vector_hash)
 
@@ -121,9 +121,9 @@ datcompleto[mat_hash_dt, fe_funder_hashed := i.values,  on = .(fe_funder = featu
 datcompleto[mat_hash_dt, fe_ward_hashed := i.values,  on = .(fe_ward = feature)]
 
 #- Numero de valores unicos en fe_funder_hashed
-length(unique(datcompleto$fe_funder_hashed)) # 647 con 2 ^ 10 y 878 con 2 ^ 12
+length(unique(datcompleto$fe_funder_hashed)) # 803 con recomendado, 647 con 2^10
 #- Numero de valores unicos en fe_ward_hashed
-length(unique(datcompleto$fe_ward_hashed)) # 593 con 2 ^ 10 y 797 con 2 ^ 12
+length(unique(datcompleto$fe_ward_hashed)) # 727 con recomendado, 593 con 2^10
 
 # Eliminamos las columnas fe_funder y fe_ward
 datcompleto[, `:=`(fe_funder = NULL, fe_ward = NULL)]
@@ -137,25 +137,25 @@ train$status_group <- as.factor(train$status_group)
 test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 
 formula   <- as.formula("status_group~.")
-# Con 2 ^ 10 0.8162121
-# Con 2 ^ 12 0.8160774
+# Con recomendado 0.8158418
+# Con 2^10        0.8162121
 my_model_9 <- fit_random_forest(formula,
                                 train)
 
 my_sub_9 <- make_predictions(my_model_9, test)
 # guardo submission
 fwrite(my_sub_9, file = "./submissions/09_lumping_fe_y_hashing_sobre_funder_ward.csv")
-# Con 2 ^ 12 0.8213
-# Con 2 ^ 10 0.8198
+# Con recomendad 0.8214
+# Con 2 ^ 10 0.8197
 
-knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8160774), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8213),
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8158418), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + hashed sobre funder + ward (mediana)")),
+                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward")),
              align = 'c')
 
 #-- Conclusion: con un valor hashing 2 ^ 12, obtenemos un score ligeramente superior al modelo lumping (mediana)
