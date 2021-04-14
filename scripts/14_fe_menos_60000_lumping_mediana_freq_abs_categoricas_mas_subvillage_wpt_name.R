@@ -35,7 +35,6 @@ dattrainOrlab$status_group <- NULL
 dattrainOrlab$funder      <- dattrainOr$funder
 dattrainOrlab$ward        <- dattrainOr$ward
 dattrainOrlab$scheme_name <- dattrainOr$scheme_name
-dattrainOrlab$subvillage  <- dattrainOr$subvillage
 dattrainOrlab$wpt_name    <- dattrainOr$wpt_name
 
 
@@ -81,7 +80,7 @@ numlev_dt %>% arrange(levels) # Todas las categorias se reducen en numero de var
 # En el caso de subvillage, tan solo se ve reducido en 45684 - 45042 = 642 categorias
 
 # ¿Categorias con muchas categorias pero algunas presentan pocas observaciones?
-cols <- c('funder', 'ward', 'scheme_name', 'subvillage', 'wpt_name')
+cols <- c('funder', 'ward', 'scheme_name', 'wpt_name')
 datcompleto[ , paste0('fe_',cols) := lapply(.SD, clean_text), .SDcols = cols]
 rm(cols)
 
@@ -109,11 +108,16 @@ datcompleto$fe_scheme_name <- as.character(datcompleto$fe_scheme_name)
 
 datcompleto[, scheme_name := NULL]
 
-datcompleto[, wpt_name := NULL]
-datcompleto[, subvillage := NULL]
+#-- fe_wpt_name
+#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 2e-05)
+summary(c(prop.table(table(datcompleto[, fe_wpt_name]))))
+datcompleto[, fe_wpt_name := fct_lump_prop(datcompleto[,fe_wpt_name], 2e-05, other_level = "other")]
+datcompleto$fe_wpt_name <- as.character(datcompleto$fe_wpt_name)
 
-#-- Imputacion de las variables categoricas por sus frecuencias absolutas (a excepcion de subvillage y/o wpt_name)
-cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
+datcompleto[, wpt_name := NULL]
+
+#-- Imputacion de las variables categoricas por sus frecuencias absolutas (a excepcion de wpt_name)
+cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])[-22]
 
 #   Antes de imputar
 freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
@@ -144,17 +148,21 @@ test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 cl <- makeCluster(detectCores())
 registerDoParallel(cl)
 
-# Con solo wpt_name:         0.8153367
-# Con wpt_name y subvillage: 0.8163468
-# Con freq abs en ambos    : 0.8167508
+# Con solo wpt_name        : 0.8165993
+# wpt_name sin depurar     : 0.8155892
+# aplicando clean_text     : 0.8153367
+# clean_text y lumping     : 0.8167508
 my_model_18 <- fit_random_forest(formula, train)
 
 my_sub_18 <- make_predictions(my_model_18, test)
 # guardo submission
-fwrite(my_sub_18, file = "./submissions/temp/18_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_y_subvillage_y_wpt_name_sin_imp_freq_abs_y_resto_categoricas.csv")
-# Con solo wpt_name:         0.8207
-# Con wpt_name y subvillage: 0.8215
-# Con freq abs en ambos    : 0.8223
+fwrite(my_sub_18, file = "./submissions/temp/18_lumping_fe_freq_abs_menos_60000_categorias_wpt_name_solo_clean_text_lumping.csv")
+# Con solo wpt_name        : 0.8236
+# wpt_name sin depurar     : 0.8220
+# aplicando clean_text     : 0.8207
+# clean_text y lumping     : 0.8227
+
+
 
 #-- Conclusion: 
 #--- Pintar importancia de variables

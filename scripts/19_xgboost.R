@@ -133,6 +133,7 @@ for(fila in 1:nrow(search_grid)) {
       objective = "multi:softmax",
       num_class = 3,
       colsample_bytree = search_grid[fila, "colsample_bytree"],
+      subsample        = search_grid[fila, "subsample"],
       max_depth        = search_grid[fila, "max_depth"],
       eta              = search_grid[fila, "eta"]
     )
@@ -141,7 +142,7 @@ for(fila in 1:nrow(search_grid)) {
   xgb_pred <- make_predictions_xgboost(my_model, test)
   fwrite(xgb_pred, 
          file = paste0("./submissions/tunning_models/xgboost/tuneo/colsample_",search_grid[fila, "colsample_bytree"],
-                       "_max_depth_",search_grid[fila, "max_depth"],"_eta_",search_grid[fila, "eta"],"_600_iter_",search_grid[fila, "colsample_bytree"],"_samples.csv")
+                       "_max_depth_",search_grid[fila, "max_depth"],"_eta_",search_grid[fila, "eta"],"_600_iter_",search_grid[fila, "subsample"],"_subsamples.csv")
          )
   
   error_final <- c(error_final, tail(my_model$evaluation_log$val1_mlogloss, 1))
@@ -166,6 +167,12 @@ c
 # 600 iteraciones parece un buen numero (con 700 comienza a disminuir) 
 # ¿Y si variamos el numero de columnas sorteadas?
 search_grid <- expand.grid(colsample_bytree = c(0.4, 0.5),
+                           max_depth = c(15),
+                           eta = c(0.02)
+)
+
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           subsample = c(0.8, 0.6),
                            max_depth = c(15),
                            eta = c(0.02)
 )

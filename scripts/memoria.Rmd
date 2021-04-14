@@ -3,8 +3,10 @@ title: "Aplicaciones del Big Data en la empresa"
 author: "Fernández Hernández, Alberto"
 date: "15/03/2021"
 output:
-  html_document: default
-  pdf_document: default
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: false
 ---
 
 ```{r setup, include=FALSE}
@@ -325,7 +327,9 @@ Tras crear el modelo, guardamos el gráfico con la importancia de cada una de la
 save_importance_ggplot(my_model_1, '../charts/01_num_cat_menos1000_todo_imp.png')
 ```
 
-![Importancia variables modelo 1](../charts/01_num_cat_menos1000_todo_imp.png)
+```{r, echo=FALSE,fig.align="center"}
+knitr::include_graphics("../charts/01_num_cat_menos1000_todo_imp.png")
+```
 
 Analizando el gráfico de importancia, observamos que las variables imputadas (año de construcción, altura GPS y longitud) presentan una elevada importancia. No obstante, las variables "_na" no parecen aportar una importancia relevante al modelo. No obstante, realizamos las predicciones y comparamos el _score_ obtenido:
 
@@ -467,12 +471,10 @@ A simple vista, el valor obtenido en el conjunto de entrenamiento mejora de 0.81
 42.519 sec elapsed
 ```
 
-```{r, eval = FALSE}
+```{r, echo=FALSE, fig.align='center'}
 #- Guardamos el grafico con la importancia del modelo
-save_importance_ggplot(my_model_2, '../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png')
+knitr::include_graphics('../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png')
 ```
-
-![Importancia variables modelo 2](../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png)
 
 De forma general, las variables creadas se sitúan entre las variables con mayor importancia (a excepción de _fe_cant_agua_). A continuación, si analizamos las predicciones obtenidas en el conjunto test:
 
@@ -548,12 +550,10 @@ my_model_3 <- fit_random_forest(formula, dattrainOrlab)
 
 En relación al conjunto _train_ anterior, ha mejorado considerablemente ¿Y en relación gráfico de importancia?
 
-```{r, eval = FALSE}
+```{r, echo=FALSE, fig.align='center'}
 #- Guardamos el grafico con la importancia del modelo
-save_importance_ggplot(my_model_3, '../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png')
+knitr::include_graphics('../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png')
 ```
-
-![Importancia variables modelo 3](../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png)
 
 Salvo la variable _fe_dr_year_ (año de _date_recorded_), por lo general son variables relevantes. Además, si analizamos el conjunto _test_:
 
@@ -650,12 +650,7 @@ my_model_4 <- fit_random_forest(formula, dattrainOrlab, num_trees = 700, mtry = 
 76.683 sec elapsed
 ```
 
-Finalmente, guardamos el gráfico de importancias y exportamos las predicciones obtenidas:
-
-```{r, eval=FALSE}
-#- Guardamos el grafico con la importancia del modelo
-save_importance_ggplot(my_model_4, '../charts/04_num_cat_menos1000_fe_tunned.png')
-```
+Finalmente, analizamos el _score_ de las predicciones obtenidas:
 
 ```{r, eval=FALSE}
 my_sub_4 <- make_predictions(my_model_4, dattestOr)
@@ -830,11 +825,9 @@ my_model_5 <- fit_random_forest(formula, train)
 
 Tras crear el modelo, echemos un vistazo a la importancia de las variables:
 
-```{r, eval=FALSE}
-save_importance_ggplot(my_model_5, '../charts/05_04_mas_fe_inst_funder_scheme_ward.png')
+```{r, echo=FALSE}
+knitr::include_graphics('../charts/05_04_mas_fe_inst_funder_scheme_ward.png')
 ```
-
-![Importancia variables modelo 5](../charts/05_04_mas_fe_inst_funder_scheme_ward.png)
 
 Observamos que ambas variables se sitúan entre las variables con mayor relevancia (importancia en torno a 1000). Veamos si con el conjunto _test_ obtenemos un mejor _score_:
 
@@ -845,7 +838,7 @@ fwrite(my_sub_5,
     file = "../submissions/05_04_mas_fe_inst_funder_scheme_ward.csv")
 ```
 
-```{r}
+```{r, echo=FALSE}
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832), 
                         "Data Submission" = c(0.8180, 0.8197),
                         row.names = c("Mejor accuracy en el concurso",
@@ -924,7 +917,7 @@ fwrite(my_sub_6,
     file = "../submissions/06_lumping_y_fe_sobre_funder_ward_mediana.csv")
 ```
 
-```{r}
+```{r, echo=FALSE}
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764), 
                         "Data Submission" = c(0.8180, 0.8197, 0.8212),
                         row.names = c("Mejor accuracy en el concurso",
@@ -1279,7 +1272,7 @@ Comprobamos que __sustituyendo las categorías en _fe_ward_ y _fe_funder_ por su
 
 ### 3.1.6 Aplicando Target Encoding
 
-### 3.1.6.1 Empleando la media
+#### 3.1.6.1 Empleando la media
 
 Otra técnica propuesta para la codificación de _fe_ward_ y _fe_funder_ consiste en __reemplazar cada categoría por la agregación de la variable objetivo__, reemplazando las variables objetivo por valores numéricos (0, 1 y 2) y sustituir cada categoría en _fe_ward_ y _fe_funder_ por el promedio de dicha variable. A modo de ejemplo:
 
@@ -1430,7 +1423,7 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
              align = 'c')
 ```
 
-### 3.1.6.2 Empleando la suma
+#### 3.1.6.2 Empleando la suma
 
 Revisando la documentación de la función _build_target_encoding_, me llamó la atención un ejemplo propuesto en el que se emplea la función la agregación _sum_ en lugar de la media. A modo de ejemplo, supongamos el siguiente _data.table_ con diferentes bombas de agua:
 
@@ -1499,7 +1492,7 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
 
 Curiosamente, el resultado obtenido __mejora con respecto al cálculo mediante la media, aunque sigue siendo mejor (por poca diferencia), la codificación por frecuencias absolutas__.
 
-## 3.1.7 Aplicando Word Embedding
+### 3.1.7 Aplicando Word Embedding
 
 Sin duda, uno de los grandes avances en el campo de la lingüística han sido las técnicas de _Word Embedding_, que permiten __la representación vectorial (n-dimensional) de una palabra o _token___. Por ello, de cara a la práctica se planteó la posibilidad de __realizar una representación vectorial de las diferentes categorías en las columnas _fe_ward_ y _fe_funder___, con el objetivo de observar si la precisión del modelo mejora o no.
 
@@ -1548,7 +1541,7 @@ for(feat in emb_cols){
 Finalmente, una vez elaborada la "receta" para la transformación de ambas columnas, __la aplicamos inicialmente sobre el conjunto _train_ y posteriormente sobre el conjunto _test___, haciendo uso de las funciones _prep_ y _bake_, respectivamente:
 
 ```{r, eval=FALSE}
-# 3. Creacion de las columnas Word EMbeddings (train y test)
+# 3. Creacion de las columnas Word Embeddings (train y test)
 train_prepped <- prep(base_recipe, train[, ..emb_cols_target])
 test_prepped <-  bake(train_prepped, test[, ..emb_cols])
 
@@ -1611,7 +1604,7 @@ Pese a aumentar el número de dimensiones (y con ello la complejidad), la precis
 
 __Conclusión__: dado el mejor _score_ obtenido, elegimos como mejor alternativa __la transformación por frecuencias absolutas__.
 
-## 3.1.8 Aplicando transformación por frecuencias absolutas al resto de variables categóricas
+### 3.1.8 Transformar por frecuencias absolutas el resto de variables categóricas
 
 A la vista de las transformaciones anteriores, la que mejor resultado ha obtenido ha sido mediante frecuencias absolutas. No obstante, y dado que solo las hemos aplicado sobre _fe_ward_ y _fe_funder_ ¿Y si la aplicamos sobre el resto de variables categóricas, concretamente de tipo carácter?
 
@@ -1692,7 +1685,7 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
 
 Codificando las variables categóricas por sus frecuencias absolutas __mejoramos los resultados obtenidos en el conjunto _test___, pasando de 0.8216 a 0.8226.
 
-## 3.1.9 Añadir las variables scheme_name e installer
+### 3.1.9 Añadiendo las variables scheme_name e installer
 
 Hasta ahora, hemos trabajado con variables categóricas que tuviesen menos de 2100 valores únicos. Sin embargo, existen variables con un mayor número de categorías como _scheme_name_, _installer_, _subvillage_ y _wpt_name_. Con el propósito de seguir un orden, __empezamos añadiendo a nuestro dataset aquellas variables con menos de 10000 categorías, esto es, _scheme_name_ e _installer___.
 
@@ -1767,27 +1760,36 @@ length(unique(datcompleto[, fe_installer]))
 Finamente, una vez reducidas ambas categorías al 50 %, aproximadamente, __realizamos la transformación por frecuencias absolutas__:
 
 ```{r}
-#-- Imputacion de las variables categoricas por sus frecuencias absolutas
+#-- Creamos una funcion para evitar redundancia de codigo
+impute_freq_abs <- function(cat_cols) {
+
+  #   Antes de imputar
+  freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
+  
+  for (cat_col in cat_cols) {
+    datcompleto[, paste0("fe_", cat_col) := as.numeric(.N), by = cat_col]
+  }
+  names(datcompleto) <- stri_replace_all_fixed(names(datcompleto), "fe_fe_", "fe_")
+  
+  for (cat_col in cat_cols) {
+    datcompleto[, paste(cat_col) := NULL]
+  }
+  new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
+  
+  #  Despues de imputar
+  freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
+  
+  comparacion_freq_dt <- data.table(rbind(freq_antes_fe[cat_cols], freq_despues_fe[new_cat_cols]))
+  
+  print(comparacion_freq_dt)
+  return(datcompleto)
+}
+```
+```{r}
+# Imputacion de las variables categoricas por sus frecuencias absolutas
 cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
 
-#   Antes de imputar
-freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
-
-for (cat_col in cat_cols) {
-  datcompleto[, paste0("fe_", cat_col) := as.numeric(.N), by = cat_col]
-}
-names(datcompleto) <- stri_replace_all_fixed(names(datcompleto), "fe_fe_", "fe_")
-
-for (cat_col in cat_cols) {
-  datcompleto[, paste(cat_col) := NULL]
-}
-new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
-
-#  Despues de imputar
-freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
-
-data.table(rbind(freq_antes_fe[c("fe_scheme_name", "fe_installer")], 
-                 freq_despues_fe[c("fe_scheme_name", "fe_installer")]))
+datcompleto <- impute_freq_abs(cat_cols)
 ```
 
 Comprobamos como el número de categorías en _scheme_name_ e _installer_ ha disminuido a 126 y 164 valores únicos, respectivamente. 
@@ -1841,6 +1843,461 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
              align = 'c')
 ```
 
+### 3.1.10 Añadiendo subvillage
 
+Hasta el momento, hemos empleado variables con menos de 10.000 valores únicos __¿Y si damos nuevamente un paso y añadimos la variable _subvillage_?__ Por supuesto, realizando los mismos pasos que en el resto de variables categóricas (limpieza de textos, _lumping_ y recategorización a frecuencias absolutas):
+
+```{r, echo=FALSE}
+datcompleto <- fread("../temp_datcompleto_3.csv", data.table = TRUE)
+```
+
+```{r}
+#-- fe_subvillage
+#   Numero de categorías antes de aplicar clean_text
+length(unique(datcompleto[, subvillage]))
+```
+
+```{r}
+cols <- c('subvillage')
+datcompleto[ , paste0('fe_',cols) := lapply(.SD, clean_text), .SDcols = cols]
+rm(cols)
+
+#   Numero de categorías tras aplicar clean_text
+length(unique(datcompleto[, fe_subvillage]))
+```
+
+Nuevamente, el número de valores únicos se ve reducido de 21426 a 21295. A continuación, aplicamos _lumping_ e imputación por frecuencias absolutas:
+
+```{r}
+#-- fe_subvillage
+summary(c(prop.table(table(datcompleto[, fe_subvillage]))))
+```
+
+```{r}
+#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 3e-05, aprox.)
+datcompleto[, fe_subvillage := fct_lump_prop(datcompleto[,fe_subvillage], 3e-05, other_level = "other")]
+datcompleto$fe_subvillage <- as.character(datcompleto$fe_subvillage)
+
+datcompleto[, subvillage := NULL]
+# Pasamos de 21295 a 7511
+length(unique(datcompleto[, fe_subvillage]))
+```
+
+```{r}
+#-- Finalmente, realizamos la imputacion por frecuencias absolutas
+cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
+
+datcompleto <- impute_freq_abs(cat_cols)
+```
+
+Como primera impresión, __el número de categorías en la variables _subvillage_ se ha visto reducido drásticamente (hasta 109 valores únicos)__, de forma que podemos estar perdiendo información relevante que permita ganar en puntuación, aunque sea en el orden de milésimas. No obstante, probamos a entrenar el nuevo modelo y realizar la _submission_ correspondiente:
+
+```{r, eval=FALSE}
+# Train
+my_model_14 <- fit_random_forest(formula, train)
+
+# Submission
+my_sub_14   <- make_predictions(my_model_14, test)
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993), 
+                        "Data Submission" = c(0.8239, 0.8219),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)")),
+             align = 'c')
+```
+
+Como podemos comprobar en la tabla anterior, el hecho de añadir la variable _subvillage_ ha provocado que el modelo empeore, pasando de 0.8239 a 0.8219. Esto puede ser debido al hecho de haber reducido de forma significativa el número de valores únicos en _subvillage_, por lo que veamos cómo quedaría el modelo __sin aplicar ninguna técnica de depuración sobre dicha columna__:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8162963), 
+                        "Data Submission" = c(0.8239, 0.8219, 0.8220),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)",
+                                      "Sin depurar subvillage (sin installer)")),
+             align = 'c')
+```
+
+Incluso sin depurar la variable, el _score_ obtenido continua siendo menor al mejor modelo obtenido. No obstante, podemos ir analizando la evolución del _score_ conforme aplicamos técnicas de depuración como _clean_text_ o _lumping_:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8162963, 0.81633, 0.816633), 
+                        "Data Submission" = c(0.8239, 0.8219, 0.8220, 0.8222, 0.8221),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)",
+                                      "Sin depurar subvillage",
+                                      "Solo clean_text",
+                                      "clean_text + lumping")),
+             align = 'c')
+```
+
+Pese al haber aplicado funciones como _clean_text_ o _lumping_ (sin imputar por frecuencias aboslutas sobre _subvillage_), no nos proporciona mejoría alguna al modelo, __por lo que lo descartamos__.
+
+### 3.1.11 Añadiendo wpt_name
+
+Junto con _subvillage_, nos queda por añadir una variable con un elevado número de categorías: _wpt_name_, con 37.400 valores únicos. Del mismo modo que en el apartado anterior, aplicamos el mismo proceso de depuración sobre dicha variable.
+
+```{r, echo=FALSE}
+datcompleto <- fread("../temp_datcompleto_4.csv", data.table = TRUE)
+```
+
+```{r}
+#-- fe_wpt_name
+#   Numero de categorías antes de aplicar clean_text
+length(unique(datcompleto[, wpt_name]))
+```
+
+```{r}
+cols <- c('wpt_name')
+datcompleto[ , paste0('fe_',cols) := lapply(.SD, clean_text), .SDcols = cols]
+rm(cols)
+
+#   Numero de categorías tras aplicar clean_text
+length(unique(datcompleto[, fe_wpt_name]))
+```
+
+Nuevamente, el número de categorías se reduce tras aplicar la función _clean_text_. Por último, si aplicamos _lumping_ e imputamos por frecuencias absolutas:
+
+```{r}
+#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 2e-05, aprox.)
+datcompleto[, fe_wpt_name := fct_lump_prop(datcompleto[,fe_wpt_name], 2e-05, other_level = "other")]
+datcompleto$fe_wpt_name <- as.character(datcompleto$fe_wpt_name)
+
+datcompleto[, wpt_name := NULL]
+# Pasamos de 45042 a 5924
+length(unique(datcompleto[, fe_wpt_name]))
+```
+
+```{r}
+#-- Finalmente, realizamos la imputacion por frecuencias absolutas
+cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
+
+datcompleto <- impute_freq_abs(cat_cols)
+```
+
+__Cabe destacar la considerable disminución en el número de categorías__, por lo que es posible que estemos perdiendo información relevante de cara al modelo, del mismo modo que sucedía con _subvillage_. De hecho, si entrenamos el nuevo modelo:
+
+```{r, eval=FALSE}
+# Train
+my_model_15 <- fit_random_forest(formula, train)
+
+# Submission
+my_sub_15   <- make_predictions(my_model_18, test)
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993), 
+                        "Data Submission" = c(0.8239, 0.8236),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 60000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer y subvillage)")),
+             align = 'c')
+```
+
+Sorprendentemente, pese al haber reducido drásticamente el número de categorías, el _score_ obtenido no se aleja tanto del mejor modelo hasta el momento (0.8236 frente a 0.8239) ¿Y si mantenemos la variable _wpt_name_ original? Es decir, sin depurar:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8155892), 
+                        "Data Submission" = c(0.8239, 0.8236, 0.8220),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 60000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer y subvillage)",
+                                      "Sin depurar wpt_name")),
+             align = 'c')
+```
+
+Por el contrario, si mantenemos la variable original, el hecho de dispone de un elevado número de categorías provoca una disminución en el _score_ del modelo ¿Y si en lugar de aplicar la imputación por freq. abs. sobre _wpt_name_ aplicamos tan solo _clean_text_ o _clean_text_ más _lumping_?
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8155892, 0.8153367, 0.8167508), 
+                        "Data Submission" = c(0.8239, 0.8236, 0.8220, 0.8207, 0.8227),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 60000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer y subvillage)",
+                                      "Sin depurar wpt_name",
+                                      "Solo clean_text",
+                                      "clean_text + lumping")),
+             align = 'c')
+```
+
+Incluso aplicando _clean_text_ y/o _lumping_, el _score_ del modelo no mejora, a la vista de los resultados anteriores, por lo que __descartamos la variable _wpt_name___. Por tanto, de las nuevas variables con un elevado número de categorías nos quedaremos con _ward_, _funder_ y _scheme_name_:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616), 
+                        "Data Submission" = c(0.8239),
+                        row.names = c("Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)")),
+             align = 'c')
+```
+
+### 3.1.12 Añadiendo variables lógicas permit y public_meeting
+
+Como últimas variables, nos quedan por añadir _permit_ y _public meeting_, ambas variables lógicas. Sin embargo, nos encontramos un problema: __ambas columnas presentan valores _missing___.
+
+```{r, echo=FALSE}
+datcompleto <- fread("../temp_datcompleto_5.csv", data.table = TRUE)
+dattestOr   <- fread("../dattestOr.csv", data.table = TRUE)
+```
+
+```{r}
+# Numero NAs permit y public_meeting
+sum(is.na(datcompleto[, permit]))
+sum(is.na(datcompleto[, public_meeting]))
+```
+
+Incluso en el conjunto _test_:
+
+```{r}
+# Numero NAs permit y public_meeting
+sum(is.na(dattestOr[, permit]))
+sum(is.na(dattestOr[, public_meeting]))
+```
+
+Por tanto, dado que existen valores _missing_, debemos imputarlos por medio de la función _missRanger_ (empleando los mismos parámetros que los utilizados durante el concurso, es decir, k = 5 y número de iteraciones = 100).
+
+```{r, eval=FALSE}
+# Imputacion de permit y public_meeting por missRanger
+datcompleto_imp <- missRanger(datcompleto,
+                            pmm.k = 5,
+                            seed = 1234,
+                            maxiter = 100)
+```
+```{r, echo=FALSE}
+datcompleto_imp <- fread("../datcompleto_imp.csv", data.table = TRUE)
+```
+```{r}
+# Comprobamos que no existen valores missing
+sum(is.na(datcompleto_imp))
+```
+
+A continuación, podría resultar de gran utilidad __incluir dos variables adicionales ( _is_na_public_meeting_ e _is_na_permit_ ), que indiquen si el valor original, previamente de ser imputado, era un valor _missing_ o no (1,0)__:
+
+```{r}
+# Creamos dos columnas adicionales que indiquen si el valor original era o no NA
+datcompleto_imp[, is_na_public_meeting := ifelse(is.na(datcompleto[, public_meeting]), 1, 0)]
+datcompleto_imp[, is_na_permit := ifelse(is.na(datcompleto[, permit]), 1, 0)]
+```
+
+Finalmente, lanzamos el nuevo modelo:
+
+```{r, eval=FALSE}
+# Train
+my_model_15 <- fit_random_forest(formula, train)
+
+# Submission
+my_sub_15   <- make_predictions(my_model_15, test)
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8168855), 
+                        "Data Submission" = c(0.8239, 0.8251),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer) + variables logicas")),
+             align = 'c')
+```
+
+Añadiendo ambas variables lógicas, el modelo ha mejorado de 0.8239 a 0.8251, superando incluso a la mejor puntuación obtenida durante el concurso en clase (0.8248).
+
+No obstante, si nos fijamos en el gráfico de importancia resultante:
+
+```{r, echo=FALSE, fig.align='center', fig.height=12, fig.width=12}
+knitr::include_graphics('../charts/19_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_y_permit_public_meeting.png')
+```
+
+Observamos que las variables binarias _is_na_ apenas tienen importancia en el modelo ¿Y si las eliminamos?
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8168855, 0.8171886), 
+                        "Data Submission" = c(0.8239, 0.8251, 0.8235),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer) + variables logicas",
+                                      "Eliminando is_na_public_meeting e is_na_permit")),
+             align = 'c')
+```
+
+Pese a la poca importancia que presentaban, eliminando ambas columnas ha provocado que el modelo empeore en cuanto a _score_ se refiere. Por otro lado, tanto _public_meeting_ como _permit_ son muy similares en cuanto a importancia ¿Mejoraría el modelo si descartamos una de ellas? 
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8161616, 0.8168855, 0.8171886, 0.8168519, 0.8172559), 
+                        "Data Submission" = c(0.8239, 0.8251, 0.8235, 0.8234, 0.8236),
+                        row.names = c("Mejor accuracy hasta el momento",
+                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer) + variables logicas",
+                                      "Eliminando is_na_public_meeting e is_na_permit",
+                                      "Empleando solo permit (mas su columna is_na)",
+                                      "Empleando solo public_meeting (mas su columna is_na)")),
+             align = 'c')
+```
+
+Nuevamente, en ninguno de los casos el modelo se ve mejorado. __Por tanto, mantenemos ambas variables lógicas más sus correspondientes columnas _is_na___.
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 
+                                             0.8158418, 0.8154882, 0.8154377, 0.814899, 0.8155724,
+                                             0.8157071, 0.8161616, 0.8168855), 
+                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
+                                              0.8204, 0.8226, 0.8239, 0.8251),
+  row.names = c("Mejor accuracy en el concurso",
+  "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + hashed sobre funder + ward",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + freq. abs. sobre funder + ward",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (media) sobre funder + ward",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + freq. abs. y target enc. (suma) sobre funder + ward",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) + word embed sobre funder y ward (dim = 2)",
+  "Num + Cat (> 1 & < 2100) fe anteriores + lumping (mediana) sobre funder y ward + freq. abs. cat.",
+  "Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)",
+  "Num + Cat (> 1 & < 10000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer) + variables logicas")),
+             align = 'c')
+```
+
+### 3.1.13 Extracción de variables sobre date_recorded
+
+#### Nuevas variables extraidas de date_recorded
+
+Tras añadir las variables lógicas _public_meeting_ y _permit_, hemos utilizado todas las variables disponibles hasta el momento. No obstante, una de los campos que, en mi opinión, no llegó a aprovecharse lo suficiente, fue _date_recorded_, del cual solo mantuvimos los campos:
+
+1. _fe_month_: mes de _date_recorded_
+2. _fe_dr_year_cyear_diff_: diferencia entre el año de _date_recorded_ y el año de construcción.
+
+No obstante, de dicho campo podemos aprovechar mucho más, extrayendo diferentes variables como las que se proponen a continuación:
+
+1. _year_: durante el concurso en clase, acabamos descartando dicha variable al no aportar mejoría alguna al modelo. Sin embargo, con el _dataset_ depurado hasta ahora ¿Mejorará si lo incluimos?
+
+2. Podemos incluso añadir nuevas variables a partir de _date_recorded_ como el __día__, el __día de la semana__, el __día del cuatrimestre__, la __semana__, el __cuatrimestre__ o incluso __si el día en el que se registró la bomba de agua era fin de semana o no__.
+
+Comenzando añadiendo nuevamente el campo _year_ al _dataset_ depurado hasta el momento, haciendo uso de la librería _lubridate_:
+
+```{r, eval=FALSE}
+#-- Icluimos year
+year          <- c(year(dattrainOr$date_recorded), year(dattestOr$date_recorded))
+datcompleto_imp$fe_dr_year <- year
+```
+
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064), 
+                        "Data Submission" = c(0.8251, 0.8236),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo year (date_recorded)")),
+             align = 'c')
+```
+
+Nuevamente, nos encontramos con que la variable _year_ no aporta mejoría alguna al modelo.
+
+En contraposición, tal y como se mencionó anteriormente, podemos añadir nuevas variables extraídas a partir de _date_recorded_, gracias al paquete _lubridate_ de _tidyverse_:
+
+```{r, eval=FALSE}
+#-- Incluimos otros campos, mediante el paquete lubridate
+datcompleto_imp[, fe_dr_day :=  day(date_recorded)]        # Dia
+datcompleto_imp[, fe_dr_wday := wday(date_recorded)]       # Dia de la semana
+datcompleto_imp[, fe_dr_qday := qday(date_recorded)]       # Dia del cuatrimestre
+datcompleto_imp[, fe_dr_week := week(date_recorded)]       # Semana
+datcompleto_imp[, fe_dr_quarter := quarter(date_recorded)] # Cuatrimestre
+
+#-- Incluimos si es o no fin de semana
+datcompleto_imp[, fe_is_weekend := ifelse(fe_dr_wday %in% c(1,7), 1, 0)]
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064, 0.8165657), 
+                        "Data Submission" = c(0.8251, 0.8236, 0.8224),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo year (date_recorded)",
+  "Incluyendo otros campos")),
+             align = 'c')
+```
+
+Pese a incluir tantos campos, el modelo empeora. Analicemos el gráfico de importancia:
+
+```{r}
+knitr::include_graphics("../charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_otros_campos.png")
+```
+
+__Nota__: para una mejor visualización, se han eliminado el resto de variables.
+
+Podemos observar que variables como el cuatrimestre o si es o no fin de semana no presentan una importancia demasiado relevante, lo que podría estar provocando una disminución del _score_ final ¿Mejoraría el modelo si descartamos ambas columnas?
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064, 0.8165657, 0.8171212), 
+                        "Data Submission" = c(0.8251, 0.8236, 0.8224, 0.8226),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo year (date_recorded)",
+  "Incluyendo otros campos",
+  "Solo dr_qday, dr_day, dr_week y dr_wday")),
+             align = 'c')
+```
+
+Descartando ambas variables, el modelo mejora ligeramente, aunque continua lejos del mejor _score_ (0.8251). No obstante, podemos dar un salto más y eliminar las siguientes variables con menor importancia como el día de la semana ( _fe_dr_wday_ ) y la semana ( _fe_dr_week_ ):
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064, 0.8165657, 0.8171212, 0.8175084), 
+                        "Data Submission" = c(0.8251, 0.8236, 0.8224, 0.8226, 0.8242),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo year (date_recorded)",
+  "Incluyendo otros campos",
+  "Solo dr_qday, dr_day, dr_week y dr_wday",
+  "Solo dr_qday y dr_day")),
+             align = 'c')
+```
+
+Aunque bien es cierto que el modelo mejora de 0.8226 a 0.8242, continua estando lejos de 0.8251, incluso si solo mantuviéramos _fe_dr_qday_:
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064, 0.8165657, 0.8171212, 0.8175084, 0.8170202), 
+                        "Data Submission" = c(0.8251, 0.8236, 0.8224, 0.8226, 0.8242, 0.8243),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo year (date_recorded)",
+  "Incluyendo otros campos",
+  "Solo dr_qday, dr_day, dr_week y dr_wday",
+  "Solo dr_qday y dr_day",
+  "Solo dr_qday")),
+             align = 'c')
+```
+
+El _score_ apenas mejora. Por tanto, __descartamos añadir cualquiera de las variables anteriores al modelo actual__.
+
+#### Day_count
+
+Hemos comprobado como, de todas las posibles variables que podían extraerse de _date_recorded_, las únicas que hemos mantenido han sido _fe_dr_year_cyear_diff_ y _fe_dr_month_. No obstante, y en relación a _date_recorded_, podríamos crear una nueva variable, __similar a lo que realizamos en clase con construction_year__ (restando a la variable un año de referencia: 2014). 
+
+Para empezar, __obtenemos una fecha de referencia, la fecha más reciente de la columna _date_recorded___:
+
+```{r}
+#-- Obtenemos una fecha de referencia (mas reciente)
+date_recorded <- c(dattrainOr$date_recorded, dattestOr$date_recorded)
+fecha_referencia <- max(ymd(date_recorded)) # Tenemos 2013-12-03
+fecha_referencia
+```
+
+Sabemos que la máxima fecha registrada corresponde con el 3 de diciembre del año 2013 __¿Y si creamos una nueva variable que almacenen la diferencia (en días) entre dicha fecha y los valores de _date_recorded_?__
+
+```{r, eval=FALSE}
+datcompleto_imp[fe_dr_day_count := as.numeric(fecha_referencia - ymd(date_recorded))]
+```
+
+```{r, echo=FALSE}
+knitr::kable(data.frame("Train accuracy" = c(0.8168855, 0.8168855), 
+                        "Data Submission" = c(0.8251, 0.8247),
+  row.names = c("Mejor modelo hasta el momento",
+  "Añadiendo day_count")),
+             align = 'c')
+```
+
+Pese al añadir dicha variable, el modelo continua sin mejorar.
+
+### Conclusión Feature Engineering
+
+Tras realizar todos los pasos anteriores, por mejor _score_ obtenido nos decantamos por el siguiente:
+
+1. Seleccionar variables numéricas
+
+2. Seleccionar variables categóricas (con menos de 10000 categorías), __a excepción de _installer___.
+
+3. Aplicar la función _clean_text_ sobre las variables categoricas (conversión a minúsculas, eliminación de espacios en blanco y signos de puntuación).
+
+4. Aplicar _lumping_ sobre las variables categóricas, __concretamente sobre la mediana en proporción de aparición__.
+
+5. Añadir variables lógicas _permit_ y _public_meeting_, imputando NAs por _missRanger_.
+
+__Mejor _score_ obtenido en DrivenData__: __0.8251__.
 
 

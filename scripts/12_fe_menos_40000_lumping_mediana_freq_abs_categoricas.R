@@ -156,16 +156,18 @@ registerDoParallel(cl)
 # lumping + freq. abs. 0.8165993
 # solo lumping         0.816633
 # solo freq. abs.      0.8164478
-# variable sin imp.    0.81633    
+# variable sin imp.    0.81633
+# variables sin imp t  0.8162963
 my_model_16 <- fit_random_forest(formula, train)
 
 my_sub_16 <- make_predictions(my_model_16, test)
 # guardo submission
-fwrite(my_sub_16, file = "./submissions/temp/16_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_y_subvillage_sin_imp_y_resto_categoricas.csv")
-# lumping + freq.abs. 0.8218
+fwrite(my_sub_16, file = "./submissions/temp/16_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_y_subvillage_sin_imp_y_resto_categoricas_TOTAL.csv")
+# lumping + freq.abs. 0.8219
 # solo lumping        0.8221
 # solo freq. abs.     0.8226
 # variable sin imp.   0.8222
+# variables sin imp.t 0.8220
 
 #-- Conclusion: 
 #--- Pintar importancia de variables

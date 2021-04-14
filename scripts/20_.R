@@ -57,7 +57,7 @@ vector_status_group <- ifelse(vector_status_group == "functional", 0
 xgb.train = xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 
 # Grid tunning
-seeds <- c(1244)
+seeds <- c(1233, 1235)
 for(seed in seeds) {
   params = list(
     objective = "multi:softmax",

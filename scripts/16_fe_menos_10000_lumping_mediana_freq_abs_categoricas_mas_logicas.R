@@ -45,7 +45,9 @@ date_recorded <- c(dattrainOr$date_recorded, dattestOr$date_recorded)
 fecha_referencia <- max(ymd(date_recorded)) # Tenemos 2013-12-03
 
 #-- Si incluimos el año en formato ymd (y añadimos una fecha de referencia)
-datcompleto_imp$fe_dr_day_count <- as.numeric(fecha_referencia - ymd(date_recorded))
+datcompleto_imp$fe_dr_day_count   <- as.numeric(fecha_referencia - ymd(date_recorded))
+datcompleto_imp$fe_dr_month_count <- round(as.numeric(fecha_referencia - ymd(date_recorded)) / 30)
+#datcompleto_imp$fe_dr_year_count  <- round(as.numeric(fecha_referencia - ymd(date_recorded)) / 365)
 
 #-- Si incluimos el año
 # year          <- c(year(dattrainOr$date_recorded), year(dattestOr$date_recorded))
@@ -55,14 +57,14 @@ datcompleto_imp$fe_dr_day_count <- as.numeric(fecha_referencia - ymd(date_record
 # datcompleto_imp$fe_dr_month_count <- time_length(interval(ymd(date_recorded), fecha_referencia), unit = "months")
 
 #-- Si incluimos otros campos, mediante el paquete lubridate
-#datcompleto_imp$fe_dr_day  <- day(date_recorded)        # Dia
-#datcompleto_imp$fe_dr_wday <- wday(date_recorded)       # Dia de la semana
-datcompleto_imp$fe_dr_qday <- qday(date_recorded)       # Dia del cuatrimestre
-#datcompleto_imp$fe_dr_week <- week(date_recorded)       # Semana
-#datcompleto_imp$fe_dr_quarter <- quarter(date_recorded) # Cuatrimestre
+# datcompleto_imp$fe_dr_day     <- day(date_recorded)        # Dia
+# datcompleto_imp$fe_dr_wday    <- wday(date_recorded)       # Dia de la semana
+# datcompleto_imp$fe_dr_qday    <- qday(date_recorded)       # Dia del cuatrimestre
+# datcompleto_imp$fe_dr_week    <- week(date_recorded)       # Semana
+# datcompleto_imp$fe_dr_quarter <- quarter(date_recorded)    # Cuatrimestre
 
 #-- Si incluimos si es o no fin de semana
-#datcompleto_imp[, fe_is_weekend := ifelse(wday(date_recorded) %in% c(1,7), 1, 0)]
+# datcompleto_imp[, fe_is_weekend := ifelse(fe_dr_wday %in% c(1,7), 1, 0)]
 
 #-- Si aplicamos una transformacion seno-coseno a los meses
 # datcompleto_imp[, fe_dr_month_sin := sin(2*pi*fe_dr_month / 12)]
@@ -83,28 +85,28 @@ test <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
 cl <- makeCluster(detectCores())
 registerDoParallel(cl)
 
+# Incluyendo year            : 0.8173064
+# Incluyendo otros campos    : 0.8165657
+# qday + day + week + wday   : 0.8171212
+# qday + day                 : 0.8175084
+# igual pero sin day         : 0.8170202
 # Incluyendo day_count       : 0.8168855
-# Incluyendo month_count     : 0.8168687
-# Incluyendo day_count y year: 0.8175421
-# Incluyendo otros campos    : 0.8170202
-# qday + day + day_count     : 0.8176768
-# igual pero sin day         : 0.8171212
-# con wday (fin de semana)   : 0.8172727 (si lo incluimos con day_count): 0.8179798
-# month sin cos transform    : 0.8172391
+# Incluyendo day_count, month: 0.8179798
+# day,month,year_count       : 0.8177273
 my_model_20 <- fit_random_forest(formula, train)
 
 my_sub_20 <- make_predictions(my_model_20, test)
 # guardo submission
-fwrite(my_sub_20, file = "./submissions/temp/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_qday_day_count.csv")
-# Incluyendo day_count        : 0.8248
-# Incluyendo month_count      : 0.8248
-# Incluyendo day_count y year : 0.8244
+fwrite(my_sub_20, file = "./submissions/temp/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_day_month_count.csv")
+# Incluyendo year             : 0.8236
 # Incluyendo otros campos     : 0.8224
-# qday y day parecen ser variables con alta importancia, ¿Y si las incluimos junto con day_count?
-# qday + day + day_count      : 0.8228
-# igual pero sin day          : 0.8229
+# qday + day + week + wday    : 0.8226
+# qday + day                  : 0.8242
+# igual pero sin day          : 0.8243
 # con wday (fin de semana)    : 0.8241 (si lo incluimos con day_count): 0.8240
-# con sin cos transformation  : 0.8224
+# Incluyendo day_count        : 0.8247
+# Incluyendo day_count, month : 0.8241
+# day, month, year_count      : 0.8236
 
 #-- Importancia variables
 impor_df <- as.data.frame(my_model_20$variable.importance)
@@ -135,12 +137,13 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
                                       "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas + vars. logicas + fe date_recorded")),
              align = 'c')
 
-ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+ggplot(impor_df[impor_df$vars %in% c("fe_dr_day", "fe_dr_wday", "fe_dr_qday", "fe_dr_week", "fe_dr_quarter", "fe_is_weekend"), ], 
+       aes(fct_reorder(vars, Importance), Importance)) +
   geom_col(group = 1, fill = "darkred") +
   coord_flip() + 
   labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
-  theme_bw()
-ggsave('./charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_month_sin_cos_transformation.png')
+  theme_bw(base_size = 14)
+ggsave('./charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_otros_campos.png')
 
 #-- Conclusion: podemos observar como añadir mas variables relacionadas con date_recorded no mejora el modelo
 
