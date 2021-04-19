@@ -1,146 +1,156 @@
 suppressPackageStartupMessages({
-  library(dplyr)          # Manipulacion de datos 
-  library(data.table)     # Lectura y escritura de ficheros
-  library(ggplot2)        # Representacion grafica
-  library(inspectdf)      # EDAs automaticos
-  library(ranger)         # randomForest (+ rapido que caret)
-  library(forcats)        # Tratamiento de variables categoricas
-  library(tictoc)         # Calculo de tiempo de ejecucion
-  library(missRanger)     # Imputacion de valores NA
-  library(knitr)          # Generacion de informes (formateo de tablas)
-  library(gmt)            # Calculo de la distancia geografica
-  library(stringi)        # Tratamiento de strings
-  library(doParallel)           # Paralelizacion de funciones
+  library(dplyr)                # Manipulacion de datos 
+  library(data.table)           # Lectura y escritura de ficheros
+  library(ranger)               # randomForest (+ rapido que caret)
+  library(forcats)              # Tratamiento de variables categoricas
+  library(tictoc)               # Calculo de tiempo de ejecucion
+  library(missRanger)           # Imputacion de valores NA
+  library(knitr)                # Generacion de informes (formateo de tablas)
+  library(gmt)                  # Calculo de la distancia geografica
+  library(stringi)              # Tratamiento de strings
   library(missRanger)           # Tratamiento de valores missing (mediante random forest)
-  
-  source("scripts/funciones.R") # Funciones propias
+  library(xgboost)              # XGboost
 })
 
-#--- Carga de ficheros train y test
+# -----------------------------
+# ----- funciones propias -----
+# -----------------------------
+
+#-- Funcion para limpieza de textos
+#   1. Conversion a minusculas
+#   2. Eliminacion de espacios en blanco
+#   3. Eliminacion de signos de puntuacion
+clean_text <- function(text) {
+  stri_trans_tolower(
+    stri_replace_all_regex(
+      text, 
+      pattern = "[ +\\p{Punct}]", 
+      replacement = ""
+    )
+  )
+}
+
+#-- Funcion para entrenar un modelo XGboost, en base a los parametros proporcionados
+fit_xgboost_model <- function(params, train, val, nrounds, early_stopping_rounds = 20, show_log_error = TRUE, seed = 1234) {
+  set.seed(seed)
+  my_model <- xgb.train(
+    data   = train,
+    params = params,
+    watchlist=list(val1=val),
+    verbose = 1,
+    nrounds= nrounds,
+    early_stopping_rounds = early_stopping_rounds,
+    nthread=4
+  )
+  return(my_model)
+}
+
+#-- Funcion para realizar la prediccion de un modelo XGboost
+make_predictions_xgboost <- function(my_model, test) {
+  xgb_pred <- predict(my_model,as.matrix(test),reshape=T)
+  xgb_pred <- ifelse(xgb_pred == 0, "functional", 
+                     ifelse(xgb_pred == 1, 
+                            "functional needs repair", 
+                            "non functional"
+                            )
+                     )
+  
+  xgb_pred <- data.table(id = test$id, status_group = xgb_pred)
+  return(xgb_pred)
+}
+
+# -----------------------------
+# -------- script final -------
+# -----------------------------
+
+#---------------------- Carga de ficheros train y test ---------------------
 dattrainOr    <- fread(file = "./data/train_values.csv", data.table = FALSE )
 dattrainLabOr <- fread(file = "./data/train_labels.csv", data.table = FALSE )
-dattestOr     <- fread(file = "./data/test_values.csv", data.table = FALSE  )
+dattestOr     <- fread(file = "./data/test_values.csv", data.table  = FALSE )
 
-#-- Variables categoricas
+#-------------------------- Variables categoricas ---------------------------
 datcat_df <- dattrainOr %>% select(where(is.character))
 
-# Mediante un bucle for, 
+# Mediante un bucle for... 
 numlev_df <- data.frame(
   "vars" = names(datcat_df),
   "levels" = apply(datcat_df, 2, 
                    function(x) length(unique(x)))
   
 )
+
 # Eliminamos los nombres de fila
 rownames(numlev_df) <- NULL
 
 kable(numlev_df %>% arrange(levels))
 
-vars_gd <- numlev_df %>%
-  filter(levels < 1000, levels > 1) %>% 
-  select(vars)
-datcat_gd <- datcat_df[ , vars_gd$vars]
-
-#-- Variables numericas
-datnum_df <- dattrainOr %>% select(where(is.numeric))
-# Unificamos ambos tipos de variables...
-datnumcat_df <- cbind(datnum_df, datcat_gd)
-
-# ...Como tambien la variable objetivo
+# Unimos dattrainOr con la variable objetivo
 dattrainOrlab <- merge(
-  datnumcat_df, dattrainLabOr,
+  dattrainOr, dattrainLabOr,
   by.x = c('id'), by.y = c('id'),
   sort = FALSE
 )
 
-dattrainOrlab$payment_type <- NULL
-dattrainOrlab$quantity_group <- NULL
-
-# Train
-dattrainOrlab$fe_cyear <- 2014 - dattrainOrlab$construction_year
-
-# Test
-dattestOr$fe_cyear <- 2014 - dattestOr$construction_year
-
-# Train
-dattrainOrlab$fe_dist <- geodist(dattrainOrlab$latitude, dattrainOrlab$longitude, 0, 0)
-
-# Test
-dattestOr$fe_dist <- geodist(dattestOr$latitude, dattestOr$longitude, 0, 0)
-
-# Train
-dattrainOrlab$fe_cant_agua <- ifelse(dattrainOrlab$population == 0,
-                                     0,
-                                     round(dattrainOrlab$amount_tsh /
-                                             dattrainOrlab$population, 3)
-)
-
-# Test
-dattestOr$fe_cant_agua <- ifelse(dattestOr$population == 0,
-                                 0,
-                                 round(dattestOr$amount_tsh /
-                                         dattestOr$population, 3)
-)
-
-#-- date_recorded --> mes
-#   Train
-dattrainOrlab$fe_dr_month <- month(dattrainOr$date_recorded)
-
-#   Test
-dattestOr$fe_dr_month     <- month(dattestOr$date_recorded)
-
-#-- date_recorded --> año date_recorded - año construction_date
-#   Train
-dattrainOrlab$fe_dr_year_cyear_diff <- year(dattrainOr$date_recorded) - dattrainOrlab$construction_year
-
-#   Test
-dattestOr$fe_dr_year_cyear_diff     <- year(dattestOr$date_recorded) - dattestOr$construction_year
-dattrainOrlab$status_group <- NULL
-
-datfinal <- rbind(dattrainOrlab, dattestOr[, names(dattestOr) %in% names(dattrainOrlab)])
-
-dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = FALSE )
-dattrainOr       <- fread(file = "./data/train_values.csv", data.table = FALSE)
-dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = FALSE  )
+#-- Eliminamos las variables no empleadas
+dattrainOrlab$recorded_by    <- NULL; dattestOr$recorded_by    <- NULL
+dattrainOrlab$payment_type   <- NULL; dattestOr$payment_type   <- NULL
+dattrainOrlab$quantity_group <- NULL; dattestOr$quantity_group <- NULL
+dattrainOrlab$installer      <- NULL; dattestOr$installer      <- NULL
+dattrainOrlab$wpt_name       <- NULL; dattestOr$wpt_name       <- NULL
+dattrainOrlab$subvillage     <- NULL; dattestOr$subvillage     <- NULL
 
 vector_status_group <- dattrainOrlab$status_group
+
 dattrainOrlab$status_group <- NULL
-
-columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]
-datcompleto <- rbind(dattrainOrlab, dattestOr[, columnas_test])
-
+datcompleto <- as.data.table(rbind(dattrainOrlab, dattestOr))
+#-- Guardamos el indice de fila donde comienza el conjunto "test",
+#   concretamente la posicion 59401
 fila_test <- which(datcompleto$id == 50785)
 
-datcompleto$funder         <- c(dattrainOr$funder, dattestOr$funder)
-datcompleto$ward           <- c(dattrainOr$ward, dattestOr$ward)
-datcompleto$scheme_name    <- c(dattrainOr$scheme_name, dattestOr$scheme_name)
-datcompleto$public_meeting <- c(dattrainOr$public_meeting, dattestOr$public_meeting)
-datcompleto$permit         <- c(dattrainOr$permit, dattestOr$permit)
+#----------------------------- Feature Engineering ------------------------------
+#-- fe_cyear: 2014 - construction_year
+datcompleto$fe_cyear     <- 2014 - datcompleto$construction_year
 
-datcompleto <- as.data.table(datcompleto)
+#-- fe_dist: geodist(latitude, longitude) al (0,0)
+datcompleto$fe_dist <- geodist(datcompleto$latitude, datcompleto$longitude, 0, 0)
 
-# ¿Categorias con muchas categorias pero algunas presentan pocas observaciones?
+#-- fe_cant_agua: cantidad de agua / hab.
+datcompleto$fe_cant_agua <- ifelse(datcompleto$population == 0,
+                                         0,
+                                         round(datcompleto$amount_tsh /
+                                                 datcompleto$population, 3)
+)
+
+#-- month: mes date_recorded
+datcompleto$fe_dr_month           <- month(datcompleto$date_recorded)
+
+#-- fe_dr_year_cyear_diff: año date_recorded - construction_year
+datcompleto$fe_dr_year_cyear_diff <- year(datcompleto$date_recorded) - datcompleto$construction_year
+
+#-- Eliminamos date_recorded
+datcompleto$date_recorded <- NULL
+
+#-- Limpieza de variables categoricas mediante clean_text
 cols <- c('funder', 'ward', 'scheme_name')
 datcompleto[ , paste0('fe_',cols) := lapply(.SD, clean_text), .SDcols = cols]
 rm(cols)
 
-#-- fe_funder
-#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 2e-05)
+#-- lumping sobre la mediana de la proporcion de aparicion
+#-  fe_funder
 summary(c(prop.table(table(datcompleto[, fe_funder]))))
 datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 2e-05, other_level = "other")]
 datcompleto$fe_funder <- as.character(datcompleto$fe_funder)
 
 datcompleto[, funder := NULL]
 
-#-- fe_ward
-#-- Aplicamos lumping sobre la mediana (50 % de categorias con una proporcion menor a 4e-04)
+#- fe_ward
 summary(c(prop.table(table(datcompleto[, fe_ward]))))
 datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 4e-04, other_level = "other")]
 datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
 
 datcompleto[, ward := NULL]
 
-#-- fe_scheme_name
+#- fe_scheme_name
 summary(c(prop.table(table(datcompleto[, fe_scheme_name]))))
 datcompleto[, fe_scheme_name := fct_lump_prop(datcompleto[,fe_scheme_name], 8.1e-05, other_level = "other")]
 datcompleto$fe_scheme_name <- as.character(datcompleto$fe_scheme_name)
@@ -150,7 +160,7 @@ datcompleto[, scheme_name := NULL]
 #-- Imputacion de las variables categoricas por sus frecuencias absolutas
 cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
 
-#   Antes de imputar
+#-  Antes de imputar
 freq_antes_fe <- apply(datcompleto[, ..cat_cols], 2, function(x) length(unique(x)))
 
 for (cat_col in cat_cols) {
@@ -158,21 +168,36 @@ for (cat_col in cat_cols) {
 }
 names(datcompleto) <- stri_replace_all_fixed(names(datcompleto),
                                              "fe_fe_", "fe_")
-
+#-- Eliminamos las variables originales
 for (cat_col in cat_cols) {
   datcompleto[, paste(cat_col) := NULL]
 }
+
 new_cat_cols <- paste0("fe_", stri_replace_all_fixed(cat_cols, "fe_", ""))
 
-#-- Solo cambian funder, ward y lga en relacion al numero de categorias
+#- Despues de imputar
 freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(unique(x)))
+
+print("ANTES DE IMPUTAR")
+freq_antes_fe
+print("------------------------------")
+freq_despues_fe
 
 #-- Variables logicas (debemos imputarlas, dado que en el conjunto test existen missings)
 sum(is.na(dattestOr$permit))
 sum(is.na(dattestOr$public_meeting))
 
+datcompleto_aux <- fread("./data/datcompleto_imp_ap_15.csv")
 
-# Imputamos por missRanger
+
+cols_orden <- c(names(datcompleto)[c(1:9)],  "construction_year", "fe_cyear", 
+                "fe_dist", "fe_cant_agua", "fe_dr_year_cyear_diff", "fe_dr_month", 
+                "public_meeting", "permit", names(datcompleto)[c(18:38)])
+
+
+setcolorder(datcompleto, cols_orden)
+
+#-- Imputamos por missRanger
 datcompleto_imp <- missRanger(datcompleto,
                               pmm.k = 5,
                               seed = 1234,
@@ -185,31 +210,44 @@ sum(is.na(datcompleto_imp))
 datcompleto_imp[, public_meeting := as.numeric(public_meeting)]
 datcompleto_imp[, permit := as.numeric(permit)]
 
-# Creamos dos columnas adicionales que indiquen si la variable logica era o no NA
+#-- Creamos dos columnas adicionales que indiquen si la variable logica era o no NA:
+#   is_na_public_meeting
+#   is_na_permit
 datcompleto_imp[, is_na_public_meeting := ifelse(is.na(datcompleto[, public_meeting]), 1, 0)]
 datcompleto_imp[, is_na_permit := ifelse(is.na(datcompleto[, permit]), 1, 0)]
+#---------------------------- Fin Feature Engineering -----------------------------
 
-
-#-- Modelo
-formula   <- as.formula("status_group~.")
+#------------------------------------ Modelo --------------------------------------
+formula <- as.formula("status_group~.")
 
 train <- datcompleto_imp[c(1:fila_test-1),]
-train$status_group <- vector_status_group
-train$status_group <- as.factor(train$status_group)
 
-test <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
+test  <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
 
-# El hecho de si la variable era o no NA no parece ser informacion relevante
-table(train[, c("is_na_public_meeting", "status_group")])
-table(train[, c("is_na_permit", "status_group")])
-table(train[, c("is_na_public_meeting", "is_na_permit", "status_group")])
-
-# 0.8168855
-my_model <- fit_random_forest(formula, train)
-
-my_sub <- make_predictions(my_model, test)
-# 0.8251
-fwrite(my_sub, file = "./submissions/final_submission.csv")
+# Transformamos la variable objetivo en numerica
+vector_status_group <- ifelse(vector_status_group == "functional", 0
+                              , ifelse(vector_status_group == "functional needs repair", 1
+                              , 2))
+xgb.train <- xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 
 
+params = list(
+  objective = "multi:softmax",
+  num_class = 3,
+  colsample_bytree = 0.3,
+  max_depth        = 15,
+  eta              = 0.02
+)
 
+tic()
+my_model <- fit_xgboost_model(params, train = xgb.train, val = xgb.train, nrounds = 600)
+toc()
+
+# accuracy = 1 - mlogloss
+accuracy <- 1 - tail(my_model$evaluation_log$val1_mlogloss, 1)
+accuracy
+
+xgb_pred <- make_predictions_xgboost(my_model, test)
+
+# Guardamos la submission
+fwrite(xgb_pred, file = "final_submission.csv")

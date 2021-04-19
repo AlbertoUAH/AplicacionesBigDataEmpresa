@@ -9,7 +9,7 @@ clean_text <- function(text) {
 }
 
 # Funcion que devuelve un modelo Random Forest entrenado
-fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed = 1234) {
+fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, max_depth, seed = 1234) {
   tic()
   my_model <- ranger( 
     formula, 
@@ -18,7 +18,8 @@ fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed 
     num.trees  = num_trees,
     mtry = mtry,
     verbose = FALSE,
-    seed = seed
+    seed = seed, 
+    max.depth = max_depth
   )
   # **Estimacion** del error / acierto **esperado**
   success <- 1 - my_model$prediction.error

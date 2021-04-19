@@ -25,9 +25,9 @@ suppressPackageStartupMessages({
 })
 
 #-- Leo ficheros
-dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = FALSE )
-dattrainOr       <- fread(file = "./data/train_values.csv", data.table = FALSE)
-dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = FALSE  )
+dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = TRUE )
+dattrainOr       <- fread(file = "./data/train_values.csv", data.table = TRUE)
+dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = TRUE  )
 
 vector_status_group <- dattrainOrlab$status_group
 dattrainOrlab$status_group <- NULL
@@ -43,7 +43,7 @@ dattrainOrlab$permit         <- dattrainOr$permit
 
 #-- Unimos train y test
 columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]
-datcompleto <- rbind(dattrainOrlab, dattestOr[, columnas_test])
+datcompleto <- rbind(dattrainOrlab, dattestOr[, ..columnas_test])
 
 # El conjunto test empieza a partir de la 59401
 fila_test <- which(datcompleto$id == 50785)
@@ -134,12 +134,11 @@ freq_despues_fe <- apply(datcompleto[, ..new_cat_cols], 2, function(x) length(un
 sum(is.na(dattestOr$permit))
 sum(is.na(dattestOr$public_meeting))
 
-
 # Imputamos por missRanger
 datcompleto_imp <- missRanger(datcompleto,
-                            pmm.k = 5,
-                            seed = 1234,
-                            maxiter = 100)
+                              pmm.k = 5,
+                              seed = 1234,
+                              maxiter = 100)
 
 # ¿Y si imputamos por mice?
 # datcompleto_imp_mice <- mice(datcompleto,

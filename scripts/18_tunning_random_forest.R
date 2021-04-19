@@ -67,12 +67,13 @@ for (n_tree in n_trees) {
 }
 rm(n_tree); rm(prediction_error); rm(rf); rm(submission)
 names(prediction_errors) <- n_trees
-prediction_errors_dt <- data.table(ntrees = as.numeric(names(prediction_errors)), 
-                                   Accuracy = c(round(prediction_errors, 4), 0.8252, 0.8253, 0.8241, 0.8246, 0.8244, 0.8242),
+prediction_errors_dt <- data.table(ntrees = rep(seq(400,900, 100), 2), 
+                                   Accuracy = c(0.8169, 0.8169, 0.8174, 0.8174, 0.8177, 0.8176, 0.8252, 0.8253, 0.8241, 0.8246, 0.8244, 0.8242),
                                    Tipo =c(rep("Train", 6), rep("Submission", 6)))
 
-ggplot(prediction_errors_dt, aes(x = ntrees, y = Accuracy, colour = Tipo)) + geom_point() + geom_smooth() + 
-  geom_label_repel(aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + ggtitle("Accuracy del modelo en funcion de ntree")
+ggplot(prediction_errors_dt, aes(x = ntrees, y = Accuracy, colour = Tipo)) + geom_point() + geom_line() + 
+  geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$ntrees <= 500, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
+  ggtitle("Accuracy del modelo en funcion de ntree")
 # Con 400-500 arboles se ha obtenido (por azar y reproducibilidad de la semilla, un score de 0.8253)
 ggsave("./charts/random_forest_seleccion_ntree.png")
 
@@ -89,7 +90,7 @@ for (fila in 1:nrow(combinaciones)) {
 }
 rm(combinaciones); rm(fila); rm(prediction_error); rm(rf); rm(submission)
 prediction_errors_dt <- data.table(ntrees = rep(c(400, 500), 12), mtry = rep(c(3,3,4,4,5,5,6,6,7,7,8,8), 2),
-                                   Accuracy = c(round(prediction_errors_2, 4), 0.8192, 0.8196, 0.8211, 0.8213, 0.8224, 0.8213, 
+                                   Accuracy = c(0.8107,0.8113,0.8147,0.8152,0.8167,0.8168,0.8169,0.8169,0.8164,0.8166,0.8162,0.8168, 0.8192, 0.8196, 0.8211, 0.8213, 0.8224, 0.8213, 
                                                 0.8252, 0.8253, 0.8230, 0.8242, 0.8228, 0.8234),
                                    Tipo =c(rep("Train", 12), rep("Submission", 12)))
 
@@ -97,39 +98,64 @@ prediction_errors_dt <- data.table(ntrees = rep(c(400, 500), 12), mtry = rep(c(3
 # 500 + 3: 0.8196 ; 500 + 4: 0.8213 ; 500 + 5: 0.8213 ; 500 + 6: 0.8253 ; 500 + 7:  0.8242 ; 500 + 8: 0.8234
 
 ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 400, ], aes(x = mtry, y = Accuracy, colour = Tipo)) + geom_point() + 
-  geom_smooth() + geom_label_repel(aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
+    geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$mtry == 6 & prediction_errors_dt$ntrees == 400, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
   ggtitle("Accuracy del modelo en funcion de mtry (ntree = 400)")
 ggsave("./charts/random_forest_seleccion_ntree400_mtry_tunning.png")
 
 ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 500, ], aes(x = mtry, y = Accuracy, colour = Tipo)) + geom_point() + 
-  geom_smooth() + geom_label_repel(aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
+  geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$mtry == 6 & prediction_errors_dt$ntrees == 500, ],
+                                 aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
   ggtitle("Accuracy del modelo en funcion de mtry (ntree = 500)")
 ggsave("./charts/random_forest_seleccion_ntree500_mtry_tunning.png")
 
-# 0.5159
-knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8160774, 0.8154882, 0.8157071, 0.8086364,
-                                             0.8152694, 0.8161111, 0.8161616, 0.8164478, 0.8165657, 0.8167508, 0.8168855, 0.8168855, 0.8167508,
-                                             0.8168855), 
-                        "Data Submission" = c(0.8180, 0.8197, 0.8212, 0.8203, 0.8196, 0.8213, 0.8216, 0.8226, 0.8110,
-                                              0.8185, 0.8207, 0.8239, 0.8226, 0.8222, 0.8223, 0.8251, 0.8248, 0.8227, 0.8253),
-                        row.names = c("Mejor accuracy en el concurso",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (tercer cuartil)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (primer cuartil)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + hashed sobre funder + ward (mediana)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + freq. abs. sobre funder + ward",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward + freq. abs. cat.",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder y ward + target encoding",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + target encoding sobre funder y ward (y lga)",
-                                      "Num + Cat (> 1 & < 2100) fe anteriores + lumping + word embed sobre funder y ward (dim. 2) + freq. abs. cat.",
-                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas",
-                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping + freq. abs. sobre categoricas (salvo subv)",
-                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping + freq. abs. sobre categoricas (salvo subv + red. cat.)",
-                                      "Num + Cat (> 1 & < 60000) fe anteriores + lumping + freq. abs. sobre categoricas",
-                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas + vars. logicas",
-                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas + vars. logicas + fe date_recorded",
-                                      "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas + vars. logicas + imp. anomalos",
-                                      "Random Forest (ntree = 500; mtry = 6)")),
-             align = 'c')
+#-- Tuneo final con semillas aleatorias
+prediction_errors_3 <- c()
+semillas <- c(1, 120, 2500, 6000, 56000, 650000)
+for (semilla in semillas) {
+  rf  <- fit_random_forest(formula, train, num_trees = 500, mtry = 6, seed = semilla)
+  prediction_error <- rf$prediction.error
+  prediction_errors_3 <- c(prediction_errors_3, 1 - prediction_error)
+  submission <- make_predictions(rf, test)
+  fwrite(submission, paste0("./submissions/tunning_models/random_forest/seeds/random_forest_with_seed_",semilla,".csv"))
+}
+rm(semillas); rm(semilla); rm(prediction_error); rm(rf); rm(submission)
+
+# seed: 1 - 0.8247; seed: 120: 0.8241; seed: 2500: 0.8243; seed: 6000: 0.8238;
+# seed: 56000: 0.8231; seed: 56000: 0.8231; seed: 650000: 0.8239
+
+#-- Veamos hasta que numero de arboles mejora el modelo
+max_depth_vector           <- c(200, 150, 80, 50)
+prediction_errors <- c()
+for (max_depth in max_depth_vector) {
+  rf  <- fit_random_forest(formula, train, num_trees = 500, mtry = 6, max_depth = max_depth, seed = 1234)
+  prediction_error <- rf$prediction.error
+  prediction_errors <- c(prediction_errors, 1 - prediction_error)
+  submission <- make_predictions(rf, test)
+  fwrite(submission, paste0("./submissions/tunning_models/random_forest/max_depth/random_forest_with_",max_depth,"_max_depth.csv"))
+}
+rm(n_tree); rm(prediction_error); rm(rf); rm(submission)
+
+# 0.8251 con 200
+# 0.8251 con 150
+# 0.8253 con 80
+# 0.8253 con 50
+# 0.8233 con 20
+# 0.8116 con 15
+# 0.7671 con 10
+# 0.7488 con 8
+# 0.7310 con 6
+# 0.6636 con 3
+
+prediction_errors_dt <- data.table(max_depth = c(3,6,8,10,15,20,50,80,150,200),
+                                   Accuracy = c(0.6636, 0.7310, 0.7488, 0.7671, 0.8116, 0.8233,
+                                                0.8253, 0.8253, 0.8251, 0.8251))
+
+ggplot(prediction_errors_dt, aes(x = max_depth, y = Accuracy, col = "red")) + geom_point() + 
+  geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$max_depth %in% c(50,80), ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text.x = element_text(vjust = 0.5)) +
+  xlab("max_depth") + 
+  ggtitle("Accuracy del modelo en funcion de max_depth (solo test)") + theme(legend.position="none")
+ggsave("./charts/random_forest_seleccion_max_depth.png")
+
+
 
