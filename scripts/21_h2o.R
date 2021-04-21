@@ -2,7 +2,7 @@
 # Autor: Alberto Fernandez
 # Fecha: 2021_04_07
 # Inputs: Datos 15_fe_menos_10000_lumping_mediana_freq_abs_categoricas_mas_logicas.R
-# Salida: Tuneo xgboost
+# Salida: Modelo autoML con h2o
 # Comentarios: 
 #-------------------
 

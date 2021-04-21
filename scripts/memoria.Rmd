@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 __Nota__: para la realización de la práctica, y a lo largo del concurso, __se ha tomado como base el _score_ obtenido en el modelo 2 realizado en clase:__
 
-1. Selección de variables numéricas y categóricas (con al menos dos categorías y menos de 1000), además de descartar las variables duplicadas _payment_type_ y _quantity_group_, además de _recorded_by_ (con una única categoría), obteniendo la siguiente puntuación:
+1. Selección de variables numéricas y categóricas (con al menos dos categorías y menos de 1000), además de descartar las variables duplicadas _payment_type_ y _quantity_group_, junto a _recorded_by_ (con una única categoría), obteniendo la siguiente puntuación:
 
 ```{r, echo=FALSE}
 knitr::kable(data.frame("Train accuracy" = 0.8168687, 
@@ -82,7 +82,7 @@ dattestOr     <- fread(file = "../data/test_values.csv",  data.table = FALSE  )
 
 # 2. Desarrollo durante el concurso
 
-__En esta sección se comentará las aportaciones que realicé en el grupo durante el concurso para mejorar la puntuación obtenida en clase,__ dado que cada miembro del grupo realizó sus pruebas de forma independiente.
+__En esta sección se comentará las aportaciones que realicé en el grupo durante el concurso para mejorar la puntuación obtenida en clase,__ dado que cada miembro del grupo realizó sus pruebas de forma independiente, sin poner en común un mismo modelo, selección de variables o _Feature Engineering_.
 
 ## 2.1 Análisis de variables existentes
 En primer lugar, en base a las funciones disponibles en la librería _inspectdf_, __se extrajo un esquema inicial con las variables existentes en el conjunto de datos y su correspondiente tipo__:
@@ -244,7 +244,7 @@ impute_zeros <- function(data, column, k, num_trees, impute = TRUE, seed = 1234)
 }
 ```
 
-Una vez definida la funcion, imputamos cada una de las columnas anteriores, __no sin antes eliminar la columna _status_group_, con el objetivo de evitar que la imputación también dependa del valor de la variable objetivo__. Además, en lugar de utilizar k = 3 como número de vecinos, durante el concurso se aumentó dicho valor a 5, con el objetivo de comprobar si el resultado mejoraba con respecto a lo obtenido en clase:
+Una vez definida la funcion, imputamos cada una de las columnas anteriores, __no sin antes eliminar la columna _status_group_, con el objetivo de evitar que la imputación también dependa del valor de la variable objetivo__, empleando k = 5 como número de vecinos:
 
 ```{r}
 # Almacenamos en un vector la variable objetivo
@@ -330,7 +330,10 @@ fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed 
 }
 ```
 
-De forma adicional, creamos una función que permita crear un grafico con la importancia de las variables del modelo pasado como argumento, así como almacenar el gráfico en disco:
+De forma adicional, creamos una función que permita:
+1. __Crear un grafico con la importancia de las variables del modelo pasado como argumento__
+
+2. __Almacenar el gráfico en disco__
 
 ```{r}
 #-- Funcion para pintar importancia de variables (ademas de guardar el grafico)
@@ -370,7 +373,7 @@ save_importance_ggplot(my_model_1, '../charts/01_num_cat_menos1000_todo_imp.png'
 knitr::include_graphics("../charts/01_num_cat_menos1000_todo_imp.png")
 ```
 
-Analizando el gráfico de importancia, observamos que las variables imputadas (año de construcción, altura GPS y longitud) presentan una elevada importancia. No obstante, las variables "_na" no parecen aportar una importancia relevante al modelo. Pese a ello, realizamos las predicciones y comparamos el _score_ obtenido:
+Analizando el gráfico de importancia, observamos que las variables imputadas (año de construcción, altura GPS y longitud) presentan una elevada importancia. No obstante, las variables "_na" __no parecen aportar una importancia relevante al modelo__. Pese a ello, realizamos las predicciones y comparamos el _score_ obtenido:
 
 ```{r}
 #-- Funcion para realizar prediccion sobre el modelo pasado como parametro
@@ -397,14 +400,14 @@ fwrite(my_sub_1, file = "../submissions/01_num_cat_menos1000_todo_imp.csv")
 puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178), 
                         "Data Submission" = c(0.8128, 0.8096),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                "Num + Cat (> 1 & < 1000) sin duplicados imp"))
+                "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp."))
 color_me <- which(puntuaciones$Data.Submission == 0.8128)
 kable(puntuaciones) %>%
   kable_styling() %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Como podemos comprobar, el hecho de imputar las variables anteriores no ha mejorado el modelo. Sin embargo, ¿Y si eliminamos las variables "_na" anteriores?
+Como podemos comprobar, el hecho de imputar las variables anteriores no ha mejorado el modelo. Sin embargo, __¿Y si eliminamos las variables "_na" anteriores?__
 
 ```{r, eval=FALSE}
 dattrainOrlab_imp_sin_col_na <- dattrainOrlab_imp
@@ -442,8 +445,8 @@ fwrite(my_sub_1_sin_cols_na, file = "../submissions/01_num_cat_menos1000_todo_im
 puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                        "Num + Cat (> 1 & < 1000) sin duplicados imp", 
-                        "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na"))
+                        "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
+                        "Anterior, eliminando columnas '_na'"))
 
 color_me <- which(puntuaciones$Data.Submission == 0.8128)
 kable(puntuaciones) %>%
@@ -451,7 +454,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Podemos comprobar que, pese a eliminar variables con muy poca importancia, el modelo empeora.
+Podemos comprobar que, pese a eliminar dichas variables, el modelo empeora.
 
 ## 2.2 Creación de nuevas variables
 En vistas a los resultados obtenidos en el apartado anterior, __se decidió no imputar dichas variables y buscar una alternativa a la mejora del modelo__. Para ello, se recurrió a la creación de nuevas variables o _feature engineering_:
@@ -534,8 +537,8 @@ fwrite(my_sub_2, file = "../submissions/02_num_cat_menos1000_fe_cyear_dist_cant_
 puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                "Num + Cat (> 1 & < 1000) sin duplicados imp", 
-                "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na",
+                "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
+                "Anterior, eliminando columnas '_na'",
                 "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua"))
             
 color_me <- which(puntuaciones$Data.Submission == 0.8174)
@@ -618,10 +621,10 @@ fwrite(my_sub_3,
 puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8115152), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176),
             row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-            "Num + Cat (> 1 & < 1000) sin duplicados imp", 
-            "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na",
+            "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
+            "Anterior, eliminando columnas '_na'",
             "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
-            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + abs(dr_year -cyear)"))
+            "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + dr_year_cyear_diff"))
 
 color_me <- which(puntuaciones$Data.Submission == 0.8176)
 kable(puntuaciones) %>%
@@ -657,11 +660,11 @@ fwrite(my_sub_3_sin_dr_year,
 puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8124579, 0.812138), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176, 0.8176),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
-                "Num + Cat (> 1 & < 1000) sin duplicados imp", 
-                "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na",
+                "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
+                "Anterior, eliminando columnas '_na'",
                 "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
-                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + dr_year -cyear",
-                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_month + dr_year -cyear"))
+                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + dr_year_cyear_diff",
+                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_month + dr_year_cyear_diff "))
 
 color_me <- which(puntuaciones$Data.Submission == 0.8176)
 kable(puntuaciones) %>%
@@ -669,7 +672,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Prácticamente, obtuvimos el mismo resultado eliminando el año de _date_recorded_, por lo que se decidió no tener en cuenta dicha variable, al no aportar mejoría alguna.
+Prácticamente, obtuvimos el mismo resultado eliminando el año de _date_recorded_, __por lo que se decidió no tener en cuenta dicha variable, al no aportar mejoría alguna__.
 
 ## 2.4 Tuneo modelo final
 
@@ -725,8 +728,8 @@ puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724,
                 "Num + Cat (> 1 & < 1000) sin duplicados imp", 
                 "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na",
                 "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua",
-                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + dr_year -cyear",
-                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_month + dr_year -cyear", 
+                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_year + dr_month + dr_year_cyear_diff",
+                "Num + Cat (> 1 & < 1000) fe cyear + dist + cant_agua + dr_month + dr_year_cyear_diff", 
                 "Num + Cat (> 1 & < 1000) fe + tunning random forest"))
 
 color_me <- which(puntuaciones$Data.Submission == 0.8176)
@@ -745,7 +748,7 @@ Tras el concurso, por cuenta propia __se ha decidido partir del mejor modelo obt
 
 1. __Variables numéricas__
 2. __Variables categóricas (> 1 y < 1000 categorías)__
-3. ___Feature Engineering_: _cyear_, _dist_, _cant_agua_, _dr_month_ y _dr_year_ - _cyear___
+3. ___Feature Engineering_: _cyear_, _dist_, _cant_agua_, _dr_month_ y _dr_year_cyear_diff ___
 4. __Empleando un modelo _Random Forest_ estándar: 500 árboles y mtry = 6__ (raíz cuadrada del número de variables)
 
 Sobre dicho modelo, se ha obtenido una mejor puntuación de 0.812138 en el conjunto _train_ y 0.8176 en el conjunto de prueba, por lo que el objetivo consistirá en superar dicho _accuracy_, así como la mejor puntuación obtenida por el grupo ganador (0.8248).
@@ -774,11 +777,11 @@ dattrainOrlab$status_group <- NULL
 #-- Nos traemos funder, ward (menos de 2100 categorias)
 #   Para el siguiente apartado
 dattrainOrlab$funder <- dattrainOr$funder
-dattrainOrlab$ward <- dattrainOr$ward
+dattrainOrlab$ward   <- dattrainOr$ward
 
 # Creamos el dataset completo (train y test unidos)
 columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]
-datcompleto <- rbind(dattrainOrlab, dattestOr[, columnas_test])
+datcompleto    <- rbind(dattrainOrlab, dattestOr[, columnas_test])
 
 # Lo convertimos a data.table
 datcompleto <- as.data.table(datcompleto)
@@ -2573,8 +2576,11 @@ Continuando con XGboost, nos encontramos con los siguientes parámetros a tunear
 
 1. _nrounds_ o número de iteraciones.
 2. _max_depth_ o profundidad máxima del árbol.
-3. _eta_ o parámetro de regularización
+3. _eta_ o parámetro de regularización.
 4. _colsample_bytree_ o número de variables a sortear por cada iteración.
+5. _colsample_bylevel_ o número de variables a sortear por cada nuevo nivel.
+6. _colsample_bynode_ o número de variables a sortear cada vez que se tenga que realizar una división en el árbol.
+7. _subsample_ o porcentaje de "submuestra" a escoger durante el entrenamiento.
 
 Nuevamente, para el tuneo del XGboost __comenzamos tuneando el número de iteraciones o _nrounds___. No obstante, y dado que con un _mtry_ bajo obtuvimos buenos resultados en _Random Forest_, de cara a XGboost __realizamos un sorteo de columnas a través de la variable _colsample_bytree___, concretamente un porcentaje bajo (0.3), __de forma que se sortee un pequeño subconjunto de variables (30 %) en lugar de todas las columnas (por defecto)__. Además, de cara a obtener un _accuracy_ "aproximado" del modelo, __empleamos _mlogloss_ como métrica de evaluación (por defecto)__:
 
@@ -2651,7 +2657,9 @@ knitr::include_graphics("../charts/xgboost_nrounds_eta_parameter_tunned.png")
 
 Comprobamos como con 600 iteraciones y un parametro de regularización de 0.02 __conseguimos mejorar aun más el modelo, de 0.8257 a 0.8260__.
 
-Por último, y empleando 600 iteraciones, _max_depth_ = 15 y _eta_ = 0.02, procedemos a tunear el último parámetro, _colsample_bytree_, el cual hemos mantenido por defecto a 0.3. De este modo, __comprobamos si sorteando un mayor o menor número de variables mejora el _score_ del modelo__:
+#### 3.2.2.3 Tuneo de colsample_bytree
+
+A continuación, y empleando 600 iteraciones, _max_depth_ = 15 y _eta_ = 0.02, procedemos a tunear el parámetro _colsample_bytree_, el cual hemos mantenido por defecto a 0.3. De este modo, __comprobamos si sorteando un mayor o menor número de variables mejora el _score_ del modelo__:
 
 ```{r, echo=FALSE}
 knitr::include_graphics("../charts/xgboost_colsample_by_tree.png")
@@ -2659,32 +2667,135 @@ knitr::include_graphics("../charts/xgboost_colsample_by_tree.png")
 
 Pese a aumentar o disminuir el sorteo de variables, el _score_ del modelo no mejora, __por lo que mantenemos la variable _colsample_bytree_ a 0.3__.
 
-Como conclusión, con _XGboost_ empleamos la siguiente configuración:
+#### 3.2.2.4 Tuneo de subsample
 
-1. _colsample_bytree_: 0.3
-2. _max_depth_: 15
-3. _eta_: 0.02
-4. _nrounds_: 600
+Por último, tunearemos un últimos parámetro: _subsample_, cuyo valor por defecto es 1, es decir, __se emplean todas las observaciones durante en el entrenamiento__. Veamos si mejora el modelo al variar el tamaño de la muestra de entrenamiento:
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8260),
-  row.names = c("Mejor score Feature Egineering",
-  "Mejor score Random Forest",
-  "Mejor score XGboost"))
+knitr::include_graphics("../charts/xgboost_subsample.png")
+```
 
-color_me <- which(puntuaciones$Data.Submission == 0.8260)
+Nuevamente, ajustando el tamaño de la muestra de entrenamiento, __el modelo continua sin mejorar__.
+
+#### 3.2.2.5 Tuneo de colsample_bylevel y colsample_bynode
+
+En último lugar, nos queda por tunear los parámetros _colsample_bylevel_ y _colsamle_bynode_, los cuales permiten sortear las variables a utilizar por cada nivel y nodo del árbol, respectivamente. Dichos parámetros son __acumulativos__. Pongamos un ejemplo:
+
+1. _colsample_bytree_: 0.3. __Sorteo un 30 % de las variables en la construcción de cada árbol__.
+
+2. _colsample_bylevel_: 0.7. Del 30 % anterior, se sortean un 70 % de las variables por cada nuevo nivel de profundidad, es decir, _total_variables_ * 0.3 * 0.7.
+
+3. _colsample_bynode_: 0.6. Del _total_variables_ * 0.3 * 0.7 anterior, se sortea un 60 % de las variables cada vez que se tenga que realizar una división en el árbol.
+
+Por ello, del 30 % de variables sorteadas en cada arbol, __probamos a sortear un porcentaje de variables en cada nivel__, tuneando _colsample_bylevel_ a 0.9, 0.8 o 0.7:
+
+```{r, echo=FALSE}
+puntuaciones <- data.frame("Data Submission" = c(0.8260, 0.8265, 0.8257, 0.8260),
+  row.names = c("colsample_bytree = 0.3",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.8",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.7"))
+
+color_me <- which(puntuaciones$Data.Submission == 0.8265)
 kable(puntuaciones) %>%
   kable_styling() %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-#### 3.2.1 Autoxgboost
+Curiosamente, __sorteando además el número de observaciones en cada nivel, el modelo mejora a 0.8265__ ¿Y si damos un más y sorteamos también el número de observaciones en cada división del árbol?
+
+```{r, echo=FALSE}
+puntuaciones <- data.frame("Data Submission" = c(0.8265, 0.8256, 0.8244, 0.8272),
+  row.names = c("colsample_bytree = 0.3 & colsample_bylevel = 0.9",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.9",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.8",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.7"))
+
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
+kable(puntuaciones) %>%
+  kable_styling() %>%
+  row_spec(color_me, bold = TRUE, background = "#4D934D")
+```
+
+__Incluso sorteando las variables a tan bajo nivel, ¡Sigue mejorando el modelo!__ ¿Y si reducimos aún más _colsample_bynode_?
+
+```{r, echo=FALSE}
+puntuaciones <- data.frame("Data Submission" = c(0.8265, 0.8256, 0.8244, 0.8272, 0.8261, 0.8266),
+  row.names = c("colsample_bytree = 0.3 & colsample_bylevel = 0.9",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.9",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.8",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.7",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.6",
+  "colsample_bytree = 0.3 & colsample_bylevel = 0.9 & colsample_bynode = 0.5"))
+
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
+kable(puntuaciones) %>%
+  kable_styling() %>%
+  row_spec(color_me, bold = TRUE, background = "#4D934D")
+```
+
+Aparentemente, 0.7 es una buena opción. Como conclusión, con _XGboost_ empleamos la siguiente configuración:
+
+1. _colsample_bytree_: 0.3
+2. _max_depth_: 15
+3. _eta_: 0.02
+4. _nrounds_: 600
+5. _subsample_: 1
+6. _colsample_bylevel_: 0.9
+7. _colsample_bynode_: 0.7
+
+```{r, echo=FALSE}
+puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8272),
+  row.names = c("Mejor score Feature Egineering",
+  "Mejor score Random Forest",
+  "Mejor score XGboost"))
+
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
+kable(puntuaciones) %>%
+  kable_styling() %>%
+  row_spec(color_me, bold = TRUE, background = "#4D934D")
+```
+
+#### 3.2.1 XGboost con H2o
+
+```{r, echo=FALSE, out.width="15%", out.height="15%"}
+knitr::include_graphics("../h2o_ai.png")
+```
+
+Tras tunear el modelo con el paquete XGboost original, __¿Que ocurriría si trasladamos los parámetros del mejor modelo a otra librería?__ Concretamente, H2o dispone de una función denominada _h2o.xgboost_, el cual permite tunear prácticamente los mismos parámetros que en el paquete anterior:
+
+```{r, eval=FALSE}
+#-- Conversion train y test a objeto h2o 
+train_h <- as.h2o(train)
+test_h  <- as.h2o(test)
+
+xgboost_model <- h2o.xgboost(x = pred, y = y,
+                             training_frame = train_h, ntrees = 600, 
+                             seed = 1234, distribution = "multinomial",
+                             eta = 0.02, max_depth = 15, colsample_bytree = 0.3, 
+                             colsample_bylevel = 0.9, colsample_bynode = 0.7)
+```
+
+```{r, echo=FALSE}
+puntuaciones <- data.frame("Data Submission" = c(0.8272, 0.8255),
+  row.names = c("Mejor score XGboost (paquete xgboost)",
+  "Mejor score XGboost (paquete H2o)"))
+
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
+kable(puntuaciones) %>%
+  kable_styling() %>%
+  row_spec(color_me, bold = TRUE, background = "#4D934D")
+```
+
+Dado que se tratan se diferentes paquetes, los resultados del modelo son ligeramente diferentes. En este caso, el resultado con h2o es menor, por lo que nos decantamos por el paquete XGboost anterior.
+
+#### 3.2.2 Autoxgboost
 
 ```{r, echo=FALSE, out.width="15%", out.height="15%"}
 knitr::include_graphics("../hexagon_logo.svg")
 ```
 
-No obstante, antes de finalizar con _XGboost_ realizamos una última prueba, concretamente con un paquete denominado _autoxgboost_, desarrollado por _Janek Thomas_. Dicho paquete permite realizar, de un modo similar a _h2o_, el tuneo automático del mejor modelo a través de una optimización bayesiana:
+Antes de finalizar con _XGboost_ realizamos una última prueba, concretamente con un paquete denominado _autoxgboost_, desarrollado por _Janek Thomas_. Dicho paquete permite realizar, de un modo similar a _h2o_, el tuneo automático del mejor modelo a través de una optimización bayesiana:
 
 ```{r, eval=FALSE}
 #-- autoxgboost
@@ -2699,13 +2810,13 @@ submission <- make_predictions(model = my_model, test_data = as.data.frame(test)
 ```
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8260, 0.8206),
+puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8272, 0.8206),
   row.names = c("Mejor score Feature Egineering",
   "Mejor score Random Forest",
   "Mejor score XGboost",
   "autoxgboost"))
 
-color_me <- which(puntuaciones$Data.Submission == 0.8260)
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
 kable(puntuaciones) %>%
   kable_styling() %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
@@ -2758,7 +2869,7 @@ for(i in 1:length(model_id)) {
 Tras elaborar los modelos _automl_, analicemos las _submissions_:
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8260, 0.8206, 0.8101, 
+puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8272, 0.8206, 0.8101, 
                                                  0.8118, 0.8020, 0.8079, 0.8137, 0.8077,
                                                  0.8027, 0.8137, 0.7945, 0.6805),
                 row.names = c("Mejor score Feature Egineering",
@@ -2776,7 +2887,7 @@ puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8260, 0.8206,
                 "GBM_1_AutoML",
                 "GLM_1_AutoML"))
 
-color_me <- which(puntuaciones$Data.Submission == 0.8260)
+color_me <- which(puntuaciones$Data.Submission == 0.8272)
 kable(puntuaciones) %>%
   kable_styling() %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
@@ -2786,7 +2897,7 @@ Analizando las salidas anterioes, __ninguno de los modelos _automl_ obtenidos me
 
 ### Conclusiones
 
-Finalmente, y en base a los resultados obtenidos a lo largo de la práctica, __el mejor _score_ obtenido ha sido de 0.8260__:
+Finalmente, y en base a los resultados obtenidos a lo largo de la práctica, __el mejor _score_ obtenido ha sido de 0.8272__:
 
 ```{r, echo=FALSE}
 knitr::include_graphics("../submission.png")
@@ -3035,9 +3146,11 @@ xgb.train <- xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 params = list(
   objective = "multi:softmax",
   num_class = 3,
-  colsample_bytree = 0.3,
-  max_depth        = 15,
-  eta              = 0.02
+  colsample_bytree  = 0.3,
+  colsample_bylevel = 0.9,
+  colsample_bynode  = 0.7,
+  max_depth         = 15,
+  eta               = 0.02
 )
 
 tic()

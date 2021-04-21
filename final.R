@@ -234,9 +234,11 @@ xgb.train <- xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 params = list(
   objective = "multi:softmax",
   num_class = 3,
-  colsample_bytree = 0.3,
-  max_depth        = 15,
-  eta              = 0.02
+  colsample_bytree  = 0.3,
+  colsample_bylevel = 0.9,
+  colsample_bynode  = 0.7,
+  max_depth         = 15,
+  eta               = 0.02
 )
 
 tic()

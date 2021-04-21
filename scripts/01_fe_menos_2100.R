@@ -89,6 +89,7 @@ train$status_group <- as.factor(train$status_group)
 test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 
 formula   <- as.formula("status_group~.")
+# Sin limpiar textos: 0.8158249
 # 0.8149832
 my_model_5 <- fit_random_forest(formula,
                                 train)
@@ -96,6 +97,7 @@ my_model_5 <- fit_random_forest(formula,
 my_sub_5 <- make_predictions(my_model_5, test)
 # guardo submission
 fwrite(my_sub_5, file = "./submissions/05_04_mas_fe_inst_funder_scheme_ward.csv")
+# Sin limpiar textos: 0.8206
 # 0.8197
 knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832), 
                         "Data Submission" = c(0.8180, 0.8197),

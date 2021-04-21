@@ -79,7 +79,7 @@ ggsave("./charts/random_forest_seleccion_ntree.png")
 
 # Con 400-500 arboles podemos tunear mtry
 prediction_errors_2 <- c()
-combinaciones <- expand.grid(c(400, 500), c(3, 4, 5, 6, 7, 8))
+combinaciones <- expand.grid(c(400, 500), c(9))
 for (fila in 1:nrow(combinaciones)) {
   rf  <- fit_random_forest(formula, train, num_trees = combinaciones[fila, "Var1"], mtry = combinaciones[fila, "Var2"])
   prediction_error <- rf$prediction.error
@@ -89,20 +89,20 @@ for (fila in 1:nrow(combinaciones)) {
                             combinaciones[fila, "Var2"],".csv"))
 }
 rm(combinaciones); rm(fila); rm(prediction_error); rm(rf); rm(submission)
-prediction_errors_dt <- data.table(ntrees = rep(c(400, 500), 12), mtry = rep(c(3,3,4,4,5,5,6,6,7,7,8,8), 2),
-                                   Accuracy = c(0.8107,0.8113,0.8147,0.8152,0.8167,0.8168,0.8169,0.8169,0.8164,0.8166,0.8162,0.8168, 0.8192, 0.8196, 0.8211, 0.8213, 0.8224, 0.8213, 
-                                                0.8252, 0.8253, 0.8230, 0.8242, 0.8228, 0.8234),
-                                   Tipo =c(rep("Train", 12), rep("Submission", 12)))
+prediction_errors_dt <- data.table(ntrees = rep(c(400, 500), 14), mtry = rep(c(3,3,4,4,5,5,6,6,7,7,8,8,9,9), 2),
+                                   Accuracy = c(0.8107,0.8113,0.8147,0.8152,0.8167,0.8168,0.8169,0.8169,0.8164,0.8166,0.8162,0.8168,0.8152,0.8156, 0.8192, 0.8196, 0.8211, 0.8213, 0.8224, 0.8213, 
+                                                0.8252, 0.8253, 0.8230, 0.8242, 0.8228, 0.8234, 0.8223, 0.8217),
+                                   Tipo =c(rep("Train", 14), rep("Submission", 14)))
 
 # 400 + 3: 0.8192 ; 400 + 4: 0.8211 ; 400 + 5: 0.8224 ; 400 + 6: 0.8252 ; 400 + 7:  0.8230 ; 400 + 8: 0.8228
 # 500 + 3: 0.8196 ; 500 + 4: 0.8213 ; 500 + 5: 0.8213 ; 500 + 6: 0.8253 ; 500 + 7:  0.8242 ; 500 + 8: 0.8234
 
-ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 400, ], aes(x = mtry, y = Accuracy, colour = Tipo)) + geom_point() + 
+ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 400, ], aes(x = factor(mtry), y = Accuracy, group=Tipo, colour = Tipo)) + geom_point() + 
     geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$mtry == 6 & prediction_errors_dt$ntrees == 400, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
   ggtitle("Accuracy del modelo en funcion de mtry (ntree = 400)")
 ggsave("./charts/random_forest_seleccion_ntree400_mtry_tunning.png")
 
-ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 500, ], aes(x = mtry, y = Accuracy, colour = Tipo)) + geom_point() + 
+ggplot(prediction_errors_dt[prediction_errors_dt$ntrees == 500, ], aes(x = factor(mtry), y = Accuracy, colour = Tipo, group=Tipo)) + geom_point() + 
   geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$mtry == 6 & prediction_errors_dt$ntrees == 500, ],
                                  aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
   ggtitle("Accuracy del modelo en funcion de mtry (ntree = 500)")
@@ -148,12 +148,11 @@ rm(n_tree); rm(prediction_error); rm(rf); rm(submission)
 
 prediction_errors_dt <- data.table(max_depth = c(3,6,8,10,15,20,50,80,150,200),
                                    Accuracy = c(0.6636, 0.7310, 0.7488, 0.7671, 0.8116, 0.8233,
-                                                0.8253, 0.8253, 0.8251, 0.8251))
+                                                0.8253, 0.8253, 0.8251, 0.8251),
+                                   col = rep("red", 10))
 
-ggplot(prediction_errors_dt, aes(x = max_depth, y = Accuracy, col = "red")) + geom_point() + 
+ggplot(prediction_errors_dt, aes(x = factor(max_depth), y = Accuracy, group = col, col = col)) + geom_point() + 
   geom_line() + geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$max_depth %in% c(50,80), ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
-  theme(axis.text.x = element_text(vjust = 0.5)) +
-  xlab("max_depth") + 
   ggtitle("Accuracy del modelo en funcion de max_depth (solo test)") + theme(legend.position="none")
 ggsave("./charts/random_forest_seleccion_max_depth.png")
 

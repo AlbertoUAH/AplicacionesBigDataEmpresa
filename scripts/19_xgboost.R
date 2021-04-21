@@ -57,7 +57,7 @@ test <- datcompleto_imp[c(fila_test:nrow(datcompleto_imp)),]
 vector_status_group <- ifelse(vector_status_group == "functional", 0
                                , ifelse(vector_status_group == "functional needs repair", 1
                                         , 2))
-xgb.train = xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
+xgb.train <- xgb.DMatrix(data=as.matrix(train), label=vector_status_group)
 
 params = list(
   objective = "multi:softmax",
@@ -111,18 +111,35 @@ for(i in seq(1:nrow(search_grid))) {
                                                                                                         "-", search_grid[i, "eta"]),"_config.csv")
   )
   
-  lista_error_2 <- c(lista_error, 1 - tail(my_model$evaluation_log$val1_mlogloss, 1))
+  lista_error_2 <- c(lista_error_2, 1 - tail(my_model$evaluation_log$val1_mlogloss, 1))
 }
+# 200 + 0.3: 0.8167
+# 150 + 0.3: 0.8173
+# 80 + 0.3 : 0.8157
+# 50 + 0.3 : 0.8166
+# 200 + 0.4: 0.8143
+# 150 + 0.4: 0.8160
+# 80  + 0.4: 0.8162
+# 50  + 0.4: 0.8157
+# 200 + 0.5: 0.8144
+# 150 + 0.5: 0.8144
+# 80 + 0.5 : 0.8138
+# 50 + 0.5 : 0.8159
+
 rm(my_model); rm(xgb_pred); rm(i); rm(my_list)
 prediction_errors_dt_2 <- data.table(Accuracy = c(0.7980, 0.7997, 0.8032, 0.8160, 0.8152, 0.8108, 0.8154, 0.8143, 0.8143,
-                                                0.8178, 0.8133, 0.8131, 0.8182, 0.8156, 0.8135, 0.8159, 0.8154, 0.8139),
-                                   colsample_byntree = rep(0.3, 18), max_depth = c(rep(3, 3), rep(6, 3), 
+                                                0.8178, 0.8133, 0.8131, 0.8182, 0.8156, 0.8135, 0.8159, 0.8154, 0.8139,
+                                                0.8166, 0.8157, 0.8159, 0.8157, 0.8162, 0.8138, 0.8173, 0.8160, 0.8144,
+                                                0.8167, 0.8143, 0.8144),
+                                   colsample_byntree = rep(0.3, 30), max_depth = c(rep(3, 3), rep(6, 3), 
                                                                                    rep(8, 3), rep(10, 3),
-                                                                                   rep(15, 3), rep(20, 3)),
-                                   eta = as.factor(rep(c(0.3, 0.4, 0.5), 6)))
+                                                                                   rep(15, 3), rep(20, 3),
+                                                                                   rep(50, 3), rep(80, 3),
+                                                                                   rep(150, 3), rep(200, 3)),
+                                   eta = as.factor(rep(c(0.3, 0.4, 0.5), 10)))
 
-ggplot(prediction_errors_dt_2, aes(x = max_depth, y = Accuracy, colour = eta)) + geom_point() + geom_line() + 
-  geom_label_repel(data = prediction_errors_dt_2[prediction_errors_dt_2$max_depth == 15, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + 
+ggplot(prediction_errors_dt_2, aes(x = factor(max_depth), y = Accuracy, group = eta, colour = eta)) + geom_point() + geom_line() + 
+  geom_label_repel(data = prediction_errors_dt_2[prediction_errors_dt_2$max_depth == 15, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
   ggtitle("Accuracy del modelo con nrounds = 500 + colsample_bytree = 0.3 (solo test)")
 ggsave("./charts/xgboost_max_depth_ntrees.png")
 
@@ -155,12 +172,12 @@ prediction_errors_dt_3 <- data.table(Accuracy = c(0.982093, 0.959185, 0.920351, 
                                                   0.8193, 0.8202, 0.8233, 0.8257, 0.8238),
                                      colsample_byntree = rep(0.3, 10), max_depth = c(rep(15, 10)),
                                      eta = rep(c(0.2, 0.1, 0.05, 0.02, 0.01), 2),
-                                     Tipo = c(rep("Train (1 - mlogloss)", 5), rep("Test", 5)))
+                                     Tipo = c(rep("Train (1 - mlogloss)", 5), rep("Test", 5)),
+                                     col = rep("red", 10))
 
-ggplot(prediction_errors_dt_3[prediction_errors_dt_3$Tipo == "Test", ],aes(x = eta, y = Accuracy, col = "red")) + geom_point() + geom_line() + 
+ggplot(prediction_errors_dt_3[prediction_errors_dt_3$Tipo == "Test", ],aes(x = factor(eta), y = Accuracy, group = col, col = col)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_3[prediction_errors_dt_3$eta <= 0.05 &
-                                                   prediction_errors_dt_3$Tipo == "Test", ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
-  scale_x_continuous("eta", breaks = unique(prediction_errors_dt_3$eta)) + theme(legend.position = "none") +
+                                                   prediction_errors_dt_3$Tipo == "Test", ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + theme(legend.position = "none") +
   ggtitle("Accuracy del modelo con nrounds = 500 + colsample_bytree = 0.3 + max_depth = 15 (solo test)")
 ggsave("./charts/xgboost_eta_parameter.png")
 
@@ -204,7 +221,9 @@ ggplot(prediction_errors_dt_4, aes(x = nrounds, y = Accuracy, colour = eta)) + g
 ggsave("./charts/xgboost_nrounds_eta_parameter_tunned.png")
 
 # Modelo 5
-search_grid <- expand.grid(colsample_bytree = c(0.2, 0.3, 0.4, 0.5),
+search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           colsample_bylevel = c(0.9),
+                           colsample_bynode = c(0.6, 0.5),
                            max_depth = c(15),
                            eta = c(0.02)
 )
@@ -215,21 +234,23 @@ for(i in seq(1:nrow(search_grid))) {
   my_list <- list(objective = "multi:softmax",
                   num_class = 3,
                   colsample_bytree = search_grid[i, "colsample_bytree"], 
+                  colsample_bylevel = search_grid[i, "colsample_bylevel"],
+                  colsample_bynode = search_grid[i, "colsample_bynode"],
                   max_depth = search_grid[i, "max_depth"],
                   eta = search_grid[i, "eta"])
   
   my_model <- fit_xgboost_model(my_list, xgb.train, xgb.train, nrounds = nround)
   xgb_pred <- make_predictions_xgboost(my_model, test)
   fwrite(xgb_pred, 
-         file = paste0("./submissions/tunning_models/xgboost/colsample_bytree/xgboost_with_",search_grid[i, "colsample_bytree"],"_colsample_bytree.csv")
+         file = paste0("./submissions/tunning_models/xgboost/colsample_bylevel/xgboost_with_",search_grid[i, "colsample_bynode"],"_colsample_bynode.csv")
   )
   
   lista_error_5 <- c(lista_error_5, 1 - tail(my_model$evaluation_log$val1_mlogloss, 1))
 }
 rm(my_model); rm(xgb_pred); rm(nround)
 
-prediction_errors_dt_5 <- data.table(Accuracy = c(0.8243, 0.8260, 0.8242, 0.8232),
-                                     colsample_bytree = as.factor(c(0.2, 0.3, 0.4, 0.5)))
+prediction_errors_dt_5 <- data.table(Accuracy = c(0.8243, 0.8260, 0.8242, 0.8232, 0.8222),
+                                     colsample_bytree = as.factor(c(0.2, 0.3, 0.4, 0.5, 0.6)))
 
 ggplot(prediction_errors_dt_5, aes(x = colsample_bytree, y = Accuracy)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5$colsample_bytree == 0.3, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
@@ -240,7 +261,7 @@ ggsave("./charts/xgboost_colsample_by_tree.png")
 search_grid <- expand.grid(colsample_bytree = c(0.3),
                            max_depth = c(15),
                            eta = c(0.02),
-                           subsample  = c(0.5, 0.6, 0.7, 0.8, 0.9, 1)
+                           subsample  = c(0.9)
 )
 
 nround <- 600
@@ -257,20 +278,44 @@ for(i in seq(1:nrow(search_grid))) {
   my_model <- fit_xgboost_model(my_list, xgb.train, xgb.train, nrounds = nround)
   xgb_pred <- make_predictions_xgboost(my_model, test)
   fwrite(xgb_pred, 
-         file = paste0("./submissions/tunning_models/xgboost/subsample/xgboost_with_",search_grid[i, "subsample"],"_subsample.csv")
+         file = paste0("./submissions/tunning_models/xgboost/subsample/xgboost_with_",search_grid[i, "subsample"],"_subsample_and_",search_grid[i, "colsample_bytree"],".csv")
   )
   
   lista_error_6 <- c(lista_error_6, 1 - tail(my_model$evaluation_log$val1_mlogloss, 1))
 }
-# 0.8244
-# 0.8254
-# 0.8254
+# subsample 0.5 and colsample 0.3: 0.8244
+# subsample 0.6 and colsample 0.3: 0.8254
+# subsample 0.7 and colsample 0.3: 0.8254
+# subsample 0.8 and colsample 0.3: 0.8252
+# subsample 0.9 and colsample 0.3: 0.8240
+
 rm(my_model); rm(xgb_pred); rm(nround)
 
+prediction_errors_dt_5 <- data.table(Accuracy = c(0.8244, 0.8254, 0.8254, 0.8252, 0.8240, 0.8260),
+                                     subsample = as.factor(c(0.5, 0.6, 0.7, 0.8, 0.9, 1)))
+
+ggplot(prediction_errors_dt_5, aes(x = subsample, y = Accuracy)) + geom_point() + geom_line() + 
+  geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5[, Accuracy] == 0.8260, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  ggtitle("Accuracy del modelo con nrounds = 600 + eta = 0.02 + max_depth = 15 + colsample = 0.3 (solo test)")
+ggsave("./charts/xgboost_subsample.png")
 
 
+# colsample by level -> 0.9: 0.8265
+# colsample by level -> 0.8: 0.8257
+# colsample by level -> 0.7: 0.8260
 
+prediction_errors_dt_5 <- data.table(Accuracy = c(0.8243, 0.8260, 0.8242, 0.8232, 0.8222),
+                                     colsample_bytree = as.factor(c(0.2, 0.3, 0.4, 0.5, 0.6)))
 
+ggplot(prediction_errors_dt_5, aes(x = colsample_bytree, y = Accuracy)) + geom_point() + geom_line() + 
+  geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5$colsample_bytree == 0.3, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  ggtitle("Accuracy del modelo con nrounds = 600 + eta = 0.02 + max_depth = 15 (solo test)")
+ggsave("./charts/xgboost_colsample_by_tree.png")
 
+# colsample by node -> 0.9: 0.8256
+# colsample by node -> 0.8: 0.8244
+# colsample by node -> 0.7: 0.8272
+# colsample by node -> 0.6: 0.8261
+# colsample by node -> 0.5: 0.8266
 
 
