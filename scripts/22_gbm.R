@@ -61,12 +61,6 @@ h2o.init()
 train_h <- as.h2o(train)
 test_h  <- as.h2o(test)
 
-#-- col_sample_rate_per_tree: indica el numero de variables a sortear en el arbol
-#-- col_sample_rate_by_level: indica el numero de variables a sortear por nivel
-gbm_params1 <- list(eta = c(0.02), max_depth = c(15),
-                    colsample_bytree = 0.3, colsample_bylevel = 0.9,
-                    colsample_bynode = 0.7)
-
 xgboost_grid <- h2o.xgboost(x = pred, y = y,
                          training_frame = train_h,
                          ntrees = 600, seed = 1234,
@@ -76,26 +70,11 @@ xgboost_grid <- h2o.xgboost(x = pred, y = y,
                          colsample_bylevel = 0.9,
                          colsample_bynode = 0.7)
 
-colsample_bylevel = c(0.6)
-for(i in 1) {
-  xgboost_model <- h2o.getModel(xgboost_grid@model_ids[[i]])
-  prediccion    <- h2o.predict(xgboost_model, newdata = test_h)
-  prediccion_df <- as.data.frame(prediccion)
-  
-  prediccion_df    <- prediccion_df$predict
-  submission       <- data.table(id = test$id, status_group = prediccion_df)
-  path             <- paste0("./submissions/tunning_models/xgboost/h2o/xgboost_colsample_bylevel_",
-                             colsample_bylevel[i],".csv")
-  fwrite(submission, path)
-}
+prediction <- h2o.predict(xgboost_grid, test_h)
+prediction_df <- as.data.frame(prediction)$predict
 
-# Empleando col_sample_rate_per_tree (hacer tabla con los resultados de XGboost)
-# 0.2: 0.8230 - 0.3: 0.8237 - 0.4: 0.8253 - 0.5: 0.8248 - 0.6: 0.8169 - 1: 0.8217
-
-# Empleando colsample_bylevel
-# 0.2: 0.8193 - 0.3: 0.8193 - 0.4: 0.8216 - 0.5: 0.8214 - 0.6: 0.8193
-
-# colsample_bynode
-# 0.2: 0.8193 - 0.3: 0.8193 - 0.4: 0.8216 - 0.5: 0.8214 - 0.6: 0.8193
+submission       <- data.table(id = test$id, status_group = prediction_df)
+path             <- paste0("./submissions/tunning_models/h2o/",model_id[i],".csv")
+fwrite(submission, "xgboost_con_h2o.csv")
 
 h2o.shutdown(prompt = FALSE)

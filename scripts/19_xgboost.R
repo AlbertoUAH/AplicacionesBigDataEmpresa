@@ -223,7 +223,7 @@ ggsave("./charts/xgboost_nrounds_eta_parameter_tunned.png")
 # Modelo 5
 search_grid <- expand.grid(colsample_bytree = c(0.3),
                            colsample_bylevel = c(0.9),
-                           colsample_bynode = c(0.6, 0.5),
+                           colsample_bynode = c(0.7),
                            max_depth = c(15),
                            eta = c(0.02)
 )
@@ -259,9 +259,11 @@ ggsave("./charts/xgboost_colsample_by_tree.png")
 
 # Modelo 6
 search_grid <- expand.grid(colsample_bytree = c(0.3),
+                           colsample_bylevel = c(0.9),
+                           colsample_bynode = c(0.7),
                            max_depth = c(15),
                            eta = c(0.02),
-                           subsample  = c(0.9)
+                           subsample  = c(0.5,0.6,0.7,0.8,0.9)
 )
 
 nround <- 600
@@ -269,7 +271,9 @@ lista_error_6 <- c()
 for(i in seq(1:nrow(search_grid))) {
   my_list <- list(objective = "multi:softmax",
                   num_class = 3,
-                  colsample_bytree = search_grid[i, "colsample_bytree"], 
+                  colsample_bytree = search_grid[i, "colsample_bytree"],
+                  colsample_bylevel = search_grid[i, "colsample_bylevel"],
+                  colsample_bynode = search_grid[i, "colsample_bynode"],
                   max_depth = search_grid[i, "max_depth"],
                   eta = search_grid[i, "eta"],
                   subsample = search_grid[i, "subsample"]
@@ -283,11 +287,11 @@ for(i in seq(1:nrow(search_grid))) {
   
   lista_error_6 <- c(lista_error_6, 1 - tail(my_model$evaluation_log$val1_mlogloss, 1))
 }
-# subsample 0.5 and colsample 0.3: 0.8244
-# subsample 0.6 and colsample 0.3: 0.8254
-# subsample 0.7 and colsample 0.3: 0.8254
-# subsample 0.8 and colsample 0.3: 0.8252
-# subsample 0.9 and colsample 0.3: 0.8240
+# subsample 0.5 and colsample 0.3: 0.8253
+# subsample 0.6 and colsample 0.3: 0.8245
+# subsample 0.7 and colsample 0.3: 0.8251
+# subsample 0.8 and colsample 0.3: 0.8264
+# subsample 0.9 and colsample 0.3: 0.8263
 
 rm(my_model); rm(xgb_pred); rm(nround)
 
