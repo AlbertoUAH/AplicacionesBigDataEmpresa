@@ -25,9 +25,9 @@ suppressPackageStartupMessages({
 })
 
 #-- Leo ficheros
-dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = TRUE )
+dattrainOrlab    <- fread(file = "./scripts/train_values_concurso.csv", data.table = TRUE )
 dattrainOr       <- fread(file = "./data/train_values.csv", data.table = TRUE)
-dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = TRUE  )
+dattestOr        <- fread(file = "./scripts/test_values_concurso.csv", data.table = TRUE  )
 
 vector_status_group <- dattrainOrlab$status_group
 dattrainOrlab$status_group <- NULL
@@ -224,20 +224,15 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
                                       "Num + Cat (> 1 & < 10000) fe anteriores + lumping + freq. abs. sobre categoricas + vars. logicas")),
              align = 'c')
 
-ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
+ggplot(impor_df[impor_df$Importance < 500, ], aes(fct_reorder(vars, Importance), Importance)) +
   geom_col(group = 1, fill = "darkred") +
   coord_flip() + 
-  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
-  theme_bw()
+  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables (Importance < 500)') +
+  theme(axis.text.y = element_text(face = "bold", colour = "black"))
 ggsave('./charts/19_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_y_permit_public_meeting.png')
 
 # Por ultimo, almacenamos el dataset imputado en un csv (y asi evitar volver a imputar valores missing y reducir tiempo)
 fwrite(datcompleto_imp, "./data/datcompleto_imp_ap_15.csv")
-
-
-
-
-
 
 
 

@@ -23,9 +23,10 @@ suppressPackageStartupMessages({
 })
 
 #-- Leo ficheros
-dattrainOrlab    <- fread(file = "./data/train_values_concurso.csv", data.table = FALSE )
+dattrainOrlab    <- fread(file = "./scripts/train_values_concurso.csv", data.table = FALSE )
 dattrainOr       <- fread(file = "./data/train_values.csv", data.table = FALSE)
-dattestOr        <- fread(file = "./data/test_values_concurso.csv", data.table = FALSE  )
+dattestOr        <- fread(file = "./scripts/test_values_concurso.csv", data.table = FALSE  )
+
 
 vector_status_group <- dattrainOrlab$status_group
 dattrainOrlab$status_group <- NULL
@@ -111,11 +112,11 @@ names(impor_df)[1] <- c('Importance')
 impor_df$vars <- rownames(impor_df)
 rownames(impor_df) <- NULL
 
-
 ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
   geom_col(group = 1, fill = "darkred") +
   coord_flip() + 
   labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
-  theme_bw()
+  theme(axis.text.y = element_text(face = "bold", colour = "black"))
+
 ggsave('./charts/05_04_mas_fe_inst_funder_scheme_ward.png')
 

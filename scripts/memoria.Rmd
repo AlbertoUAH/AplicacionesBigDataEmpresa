@@ -55,7 +55,7 @@ suppressPackageStartupMessages({
   library(inspectdf)       # EDAs automaticos
   library(ranger)          # randomForest (+ rapido que caret)
   library(forcats)         # Tratamiento de variables categoricas
-  library(tictoc)          # Calculo de tiempo de ejecucion
+  library(tictoc)          # Calculo del tiempo de ejecucion
   library(missRanger)      # Imputacion de valores NA
   library(knitr)           # Generacion de documentos + formateo de tablas
   library(kableExtra)      # Formateo de tablas (colores)
@@ -77,7 +77,7 @@ suppressPackageStartupMessages({
 #--- Carga de ficheros train y test
 dattrainOr    <- fread(file = "../data/train_values.csv", data.table = FALSE )
 dattrainLabOr <- fread(file = "../data/train_labels.csv", data.table = FALSE )
-dattestOr     <- fread(file = "../data/test_values.csv",  data.table = FALSE  )
+dattestOr     <- fread(file = "../data/test_values.csv",  data.table = FALSE )
 ```
 
 # 2. Desarrollo durante el concurso
@@ -135,6 +135,14 @@ vars_gd <- numlev_df %>%
   filter(levels < 1000, levels > 1) %>% 
   select(vars)
 datcat_gd <- datcat_df[ , vars_gd$vars]
+
+# Mantenemos las columnas en el mismo orden original
+cols <- c("basin", "region", "lga", "scheme_management", "extraction_type", "extraction_type_group",
+          "extraction_type_class", "management", "management_group", "payment", "payment_type", 
+          "water_quality", "quality_group", "quantity", "quantity_group", "source", 
+          "source_type", "source_class", "waterpoint_type", "waterpoint_type_group"
+          )
+datcat_gd <- datcat_gd[, cols]
 ```
 
 ```{r}
@@ -153,6 +161,23 @@ dattrainOrlab <- merge(
   datnumcat_df, dattrainLabOr,
   by.x = c('id'), by.y = c('id'),
   sort = FALSE
+)
+```
+
+__El resto de variables las almacenamos en un _data.table_ auxiliar__, con el objetivo de emplearlas en la sección 3:
+
+```{r}
+#-- Almacenamos variables categoricas sin utilizar
+datcat_mas_1000_mas_logicas_dr <- data.table(
+  funder         = c(dattrainOr$funder,         dattestOr$funder         ),
+  ward           = c(dattrainOr$ward,           dattestOr$ward           ),
+  installer      = c(dattrainOr$installer,      dattestOr$installer      ),
+  scheme_name    = c(dattrainOr$scheme_name,    dattestOr$scheme_name    ),
+  subvillage     = c(dattrainOr$subvillage,     dattestOr$subvillage     ),
+  wpt_name       = c(dattrainOr$wpt_name,       dattestOr$wpt_name       ),
+  permit         = c(dattrainOr$permit,         dattestOr$permit         ),
+  public_meeting = c(dattrainOr$public_meeting, dattestOr$public_meeting ),
+  date_recorded  = c(dattrainOr$date_recored,   dattestOr$date_recorded  )
 )
 ```
 
@@ -331,23 +356,25 @@ fit_random_forest <- function(formula, data, num_trees = 500, mtry = NULL, seed 
 ```
 
 De forma adicional, creamos una función que permita:
+
 1. __Crear un grafico con la importancia de las variables del modelo pasado como argumento__
 
 2. __Almacenar el gráfico en disco__
 
 ```{r}
 #-- Funcion para pintar importancia de variables (ademas de guardar el grafico)
-save_importance_ggplot <- function(model, path) {
+save_importance_ggplot <- function(model, path, title) {
   impor_df <- as.data.frame(model$variable.importance)
   names(impor_df)[1] <- c('Importance')
   impor_df$vars <- rownames(impor_df)
   rownames(impor_df) <- NULL
   
   print(ggplot(impor_df, aes(fct_reorder(vars, Importance), Importance)) +
-    geom_col(group = 1, fill = "darkred") +
-    coord_flip() + 
-    labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
-    theme_bw())
+      geom_col(group = 1, fill = "darkred") +
+      coord_flip() + 
+      labs(x = 'Variables', y = 'Importancia', title = title) +
+      theme(axis.text.y = element_text(face = "bold", colour = "black"))
+    )
   ggsave(path)
 }
 ```
@@ -358,19 +385,21 @@ formula    <- as.formula('status_group~.')
 
 my_model_1 <- fit_random_forest(formula, dattrainOrlab_imp)
 ```
+
 ```
 [1] 0.8101178
-34.328 sec elapsed
+36.403 sec elapsed
 ```
 
 Tras crear el modelo, guardamos el gráfico con la importancia de cada una de las variables:
 
 ```{r, eval=FALSE}
-save_importance_ggplot(my_model_1, '../charts/01_num_cat_menos1000_todo_imp.png')
+save_importance_ggplot(my_model_1, "../charts/01_num_cat_menos1000_todo_imp.png",
+                       title = "Importancia Variables Modelo 01")
 ```
 
 ```{r, echo=FALSE,fig.align="center"}
-knitr::include_graphics("../charts/01_num_cat_menos1000_todo_imp.png")
+include_graphics("../charts/01_num_cat_menos1000_todo_imp.png")
 ```
 
 Analizando el gráfico de importancia, observamos que las variables imputadas (año de construcción, altura GPS y longitud) presentan una elevada importancia. No obstante, las variables "_na" __no parecen aportar una importancia relevante al modelo__. Pese a ello, realizamos las predicciones y comparamos el _score_ obtenido:
@@ -407,7 +436,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Como podemos comprobar, el hecho de imputar las variables anteriores no ha mejorado el modelo. Sin embargo, __¿Y si eliminamos las variables "_na" anteriores?__
+Como podemos comprobar, el hecho de imputar las variables anteriores no ha mejorado el modelo. Sin embargo, __¿Y si eliminamos las variables "\_na" anteriores?__
 
 ```{r, eval=FALSE}
 dattrainOrlab_imp_sin_col_na <- dattrainOrlab_imp
@@ -430,10 +459,10 @@ my_model_1_sin_cols_na <- fit_random_forest(formula, dattrainOrlab_imp_sin_col_n
 
 ```
 [1] 0.8105724
-43.627 sec elapsed
+39.914 sec elapsed
 ```
 
-En relación con el conjunto _train_, parece mejorar ligeramente (de 0.8101178 a 0.8105724). Analicemos el conjunto _test_:
+En relación con el conjunto _train_, parece mejorar ligeramente (de 0.8103535 a 0.811229). Analicemos el conjunto _test_:
 
 ```{r, eval = FALSE}
 my_sub_1_sin_cols_na <- make_predictions(my_model_1_sin_cols_na, dattestOr_imp_sin_col_na)
@@ -454,7 +483,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Podemos comprobar que, pese a eliminar dichas variables, el modelo empeora.
+Podemos comprobar que, pese a eliminar dichas variables, el _score_ del modelo empeora.
 
 ## 2.2 Creación de nuevas variables
 En vistas a los resultados obtenidos en el apartado anterior, __se decidió no imputar dichas variables y buscar una alternativa a la mejora del modelo__. Para ello, se recurrió a la creación de nuevas variables o _feature engineering_:
@@ -517,12 +546,17 @@ A simple vista, el valor obtenido en el conjunto de entrenamiento mejora de 0.81
 
 ```
 [1] 0.8122391
-42.519 sec elapsed
+38.009 sec elapsed
+```
+
+```{r, eval=FALSE}
+save_importance_ggplot(my_model_2, "../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png",
+                       title = "Importancia Variables Modelo 02")
 ```
 
 ```{r, echo=FALSE, fig.align='center'}
 #- Guardamos el grafico con la importancia del modelo
-knitr::include_graphics('../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png')
+include_graphics('../charts/02_num_cat_menos1000_fe_cyear_dist_cant_agua.png')
 ```
 
 De forma general, las variables creadas se sitúan entre las variables con mayor importancia (a excepción de _fe_cant_agua_). A continuación, si analizamos las predicciones obtenidas en el conjunto test:
@@ -564,15 +598,6 @@ dattrainOrlab$fe_dr_year <- year(dattrainOr$date_recorded)
 dattestOr$fe_dr_year     <- year(dattestOr$date_recorded)
 ```
 
-```{r}
-#-- date_recorded --> mes
-#   Train
-dattrainOrlab$fe_dr_month <- month(dattrainOr$date_recorded)
-
-#   Test
-dattestOr$fe_dr_month     <- month(dattestOr$date_recorded)
-```
-
 En relación a la diferencia entre _date_recorded_ y _construction_year_, llamó la atención la __diferencia negativa entre algunas observaciones__, es decir, __bombas de agua en las que la fecha de registro fue posterior a la fecha de su construcción__:
 
 ```{r}
@@ -582,6 +607,15 @@ dattrainOrlab$fe_dr_year_cyear_diff <- dattrainOrlab$fe_dr_year - dattrainOrlab$
 
 #   Test
 dattestOr$fe_dr_year_cyear_diff     <- dattestOr$fe_dr_year - dattestOr$construction_year
+```
+
+```{r}
+#-- date_recorded --> mes
+#   Train
+dattrainOrlab$fe_dr_month <- month(dattrainOr$date_recorded)
+
+#   Test
+dattestOr$fe_dr_month     <- month(dattestOr$date_recorded)
 ```
 
 ```{r}
@@ -597,15 +631,20 @@ my_model_3 <- fit_random_forest(formula, dattrainOrlab)
 ```
 
 ```
-[1] 0.8115152
-40.562 sec elapsed
+[1] 0.8114983
+46.337 sec elapsed
 ```
 
 En relación al conjunto _train_ anterior, ha mejorado considerablemente ¿Y en relación gráfico de importancia?
 
+```{r, eval=FALSE}
+save_importance_ggplot(my_model_3, "../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png",
+                       title = "Importancia Variables Modelo 03")
+```
+
 ```{r, echo=FALSE, fig.align='center'}
 #- Guardamos el grafico con la importancia del modelo
-knitr::include_graphics('../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png')
+include_graphics('../charts/03_num_cat_menos1000_fe_cyear_dist_cant_agua_dr_year_month_old.png')
 ```
 
 Salvo la variable _fe_dr_year_ (año de _date_recorded_), por lo general son variables relevantes. Además, si analizamos el conjunto _test_:
@@ -618,7 +657,7 @@ fwrite(my_sub_3,
 ```
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8115152), 
+puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8114983), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176),
             row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
             "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
@@ -632,7 +671,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Observamos que __el modelo ha mejorado de 0.8174 a 0.8176__. Sin embargo, no todas las variables son de especial importancia, como es el caso de _fe_dr_year_ (ver gráfica anterior) ¿Y si eliminamos dicha variable?
+Observamos que __el modelo ha mejorado a 0.8176__. Sin embargo, no todas las variables son de especial importancia, como es el caso de _fe_dr_year_ (ver gráfica anterior) ¿Y si eliminamos dicha variable?
 
 ```{r}
 dattrainOrlab$fe_dr_year <- NULL
@@ -645,8 +684,8 @@ my_model_3_sin_dr_year <- fit_random_forest(formula, dattrainOrlab)
 ```
 
 ```
-[1] 0.812138
-39.71 sec elapsed
+[1] 0.8124579
+41.523 sec elapsed
 ```
 
 ```{r, eval=FALSE}
@@ -657,7 +696,7 @@ fwrite(my_sub_3_sin_dr_year,
 ```
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8124579, 0.812138), 
+puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8114983, 0.8124579), 
                         "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176, 0.8176),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
                 "Num + Cat (> 1 & < 1000) sin duplicados longitude-construction_year-gps_height imp.", 
@@ -672,7 +711,13 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Prácticamente, obtuvimos el mismo resultado eliminando el año de _date_recorded_, __por lo que se decidió no tener en cuenta dicha variable, al no aportar mejoría alguna__.
+```{r}
+#-- Guardamos el mejor dataset para la mejora del modelo tras el concurso
+fwrite(dattrainOrlab, "./train_values_concurso.csv")
+fwrite(dattestOr    , "./test_values_concurso.csv" )
+```
+
+Curiosamente, eliminando el año de _date_recorded_ no hace empeorar el _score_, __por lo que se decidió no tener en cuenta dicha variable, al no aportar mejoría alguna__.
 
 ## 2.4 Tuneo modelo final
 
@@ -681,7 +726,7 @@ Como última _submission realizada en clase_ __se realizó un tuneo de hiperpar�
 ```{r, eval=FALSE}
 #-- Tuneo del numero de arboles y mtry
 my_ntree <- c(500, 600, 700, 800)
-my_mtry  <- c(5, 6, 7, 10)
+my_mtry  <- c(5, 6, 7)
 my_pars  <- expand.grid(my_ntree, my_mtry)
 names(my_pars) <- c('myntree', 'mymtry')
 my_pars$accuracy <- 0
@@ -703,13 +748,13 @@ my_pars[which(my_pars$accuracy == max(my_pars$accuracy)), ]
 ```
 
 ```{r, eval=FALSE}
-#-- Entrenamos el modelo con 700 arboles y mtry = 6
-my_model_4 <- fit_random_forest(formula, dattrainOrlab, num_trees = 700, mtry = 6)
+#-- Entrenamos el modelo con 800 arboles y mtry = 7
+my_model_4 <- fit_random_forest(formula, dattrainOrlab, num_trees = 800, mtry = 7)
 ```
 
 ```
-[1] 0.8137374
-76.683 sec elapsed
+[1] 0.8135017
+88.765 sec elapsed
 ```
 
 Finalmente, analizamos el _score_ de las predicciones obtenidas:
@@ -722,8 +767,8 @@ fwrite(my_sub_4,
 ```
 
 ```{r, echo=FALSE}
-puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8124579, 0.812138, 0.8137374), 
-                        "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176, 0.8176, 0.8172),
+puntuaciones <- data.frame("Train accuracy" = c(0.8168687, 0.8101178, 0.8105724, 0.8122391, 0.8114983, 0.8124579, 0.8135017), 
+                        "Data Submission" = c(0.8128, 0.8096, 0.8081, 0.8174, 0.8176, 0.8176, 0.8174),
                 row.names = c("Num + Cat (> 1 & < 1000) sin duplicados",
                 "Num + Cat (> 1 & < 1000) sin duplicados imp", 
                 "Num + Cat (> 1 & < 1000) sin duplicados imp sin cols na",
@@ -738,7 +783,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Pese al tuneo realizado, no consigue mejorar el _score_ obtenido en _Feature Engineering_.
+Realizando el tuneo del _Random Forest_, el _score_ del modelo no consigue mejorar.
 
 # 3. Mejora del modelo tras el concurso
 
@@ -748,24 +793,21 @@ Tras el concurso, por cuenta propia __se ha decidido partir del mejor modelo obt
 
 1. __Variables numéricas__
 2. __Variables categóricas (> 1 y < 1000 categorías)__
-3. ___Feature Engineering_: _cyear_, _dist_, _cant_agua_, _dr_month_ y _dr_year_cyear_diff ___
+3. ___Feature Engineering_: _cyear_, _dist_, _cant_agua_, _dr_month_ y _dr_year_cyear_diff___
 4. __Empleando un modelo _Random Forest_ estándar: 500 árboles y mtry = 6__ (raíz cuadrada del número de variables)
 
-Sobre dicho modelo, se ha obtenido una mejor puntuación de 0.812138 en el conjunto _train_ y 0.8176 en el conjunto de prueba, por lo que el objetivo consistirá en superar dicho _accuracy_, así como la mejor puntuación obtenida por el grupo ganador (0.8248).
+Sobre dicho modelo, se ha obtenido una mejor puntuación de 0.8133502 en el conjunto _train_ y 0.8184 en el conjunto de prueba, por lo que el objetivo consistirá en superar dicho _accuracy_, así como la mejor puntuación obtenida por el grupo ganador (0.8248).
 
 ```{r, echo=FALSE}
-rm(list = ls())
+rm(list = setdiff(ls(), "datcat_mas_1000_mas_logicas_dr"))
 ```
 
 __Importante__: con el objetivo de evitar redundancia de código, el conjunto de datos obtenido en la fase anterior se ha almacenado en ficheros csv denominados _train_values_concurso.csv_ y _test_values_concurso.csv_. Además, de ahora en adelante se trabajará con _data.table_ en lugar de _data.frames_, con fines únicamente didácticos (aprender una nueva estructura de datos):
 
 ```{r}
-# Volvemos a cargar dattrainOr, ya que contiene la columna status_group
-# Inicialmente los cargamos en formato data.frame
-dattrainOr       <- fread(file = "../data/train_values.csv", data.table = FALSE)
-
-dattrainOrlab    <- fread(file = "../data/train_values_concurso.csv", data.table = FALSE )
-dattestOr        <- fread(file = "../data/test_values_concurso.csv", data.table = FALSE  )
+# Cargamos el conjunto de datos con el que se ha obtenido un mejor score en clase
+dattrainOrlab    <- fread(file = "./train_values_concurso.csv", data.table = FALSE )
+dattestOr        <- fread(file = "./test_values_concurso.csv", data.table = FALSE  )
 ```
 
 Una vez cargados ambos datos (entrenamiento y prueba), se tomó la decisión de juntar ambos ficheros en una única variable (dat_completo), evitando de este modo la duplicidad en el código. Por tanto, y dado que el conjunto _test_ no dispone de la columna _status_group_, almacenamos la variable objetivo del conjunto _train_ en un vector:
@@ -774,14 +816,14 @@ Una vez cargados ambos datos (entrenamiento y prueba), se tomó la decisión de 
 vector_status_group        <- dattrainOrlab$status_group
 dattrainOrlab$status_group <- NULL
 
-#-- Nos traemos funder, ward (menos de 2100 categorias)
-#   Para el siguiente apartado
-dattrainOrlab$funder <- dattrainOr$funder
-dattrainOrlab$ward   <- dattrainOr$ward
-
 # Creamos el dataset completo (train y test unidos)
 columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]
 datcompleto    <- rbind(dattrainOrlab, dattestOr[, columnas_test])
+
+#-- Nos traemos funder, ward (menos de 2100 categorias)
+#   Para el siguiente apartado
+datcompleto$funder <- datcat_mas_1000_mas_logicas_dr$funder
+datcompleto$ward   <- datcat_mas_1000_mas_logicas_dr$ward
 
 # Lo convertimos a data.table
 datcompleto <- as.data.table(datcompleto)
@@ -795,7 +837,7 @@ Además, de cara a la posterior separación del conjunto _train_ y _test_ para e
 fila_test <- which(datcompleto$id == 50785)
 ```
 
-### 3.1.1 Incluyendo variables < 2100 valores únicos
+### 3.1.1 Variables < 2100 valores únicos
 
 Hasta ahora, hemos incluido variables con menos de 1000 categorias únicas, esto es, hasta la variable _lga_. Durante el concurso, no se tuvieron en cuenta, dado que el objetivo fue __maximizar el _score_ del modelo sin necesidad de recurrir a variables con un alto número de categorías__. Por ello, de cara a la parte individual se tomó la primera decisión de trabajar sobre dichos campos.
 
@@ -823,7 +865,7 @@ Lgcdg   - Lgcbg  # En el caso de funder
 Magole  - Magoma # En el caso de ward
 ```
 
-Es decir, se tratan de regiones muy similares desde un punto de vista sintáctico. Por tanto, ¿quién nos asegura que dos o más categorías se diferencien por tan solo un espacio en blanco, una palabra en mayúscula o por signos de puntuación? Como consecuencia, antes de procesar un modelo se procedió a __realizar una limpieza sobre ambas columnas, con el propósito de comprobar si se reduce el número de valores únicos__. Para ello, empleamos la librería __stringi__, creando una función que permita filtrar:
+Es decir, se tratan de regiones muy similares desde un punto de vista léxico. Por tanto, ¿quién nos asegura que dos o más categorías se diferencien por tan solo un espacio en blanco, una palabra en mayúscula o por signos de puntuación? Como consecuencia, antes de procesar un modelo se procedió a __realizar una limpieza sobre ambas columnas, con el propósito de comprobar si se reduce el número de valores únicos__. Para ello, empleamos la librería __stringi__, creando una función que permita filtrar:
 
 1. Mayúsculas
 2. Espacios en blanco
@@ -898,10 +940,10 @@ my_model_5 <- fit_random_forest(formula, train)
 Tras crear el modelo, echemos un vistazo a la importancia de las variables:
 
 ```{r, echo=FALSE}
-knitr::include_graphics('../charts/05_04_mas_fe_inst_funder_scheme_ward.png')
+include_graphics('../charts/05_04_mas_fe_inst_funder_scheme_ward.png')
 ```
 
-Observamos que ambas variables se sitúan entre las variables con mayor relevancia (importancia en torno a 1000). Veamos si con el conjunto _test_ obtenemos un mejor _score_:
+Observamos que ambas columnas se sitúan entre las variables con mayor relevancia (importancia en torno a 1000). Veamos si con el conjunto _test_ obtenemos un mejor _score_:
 
 ```{r, eval=FALSE}
 my_sub_5 <- make_predictions(my_model_5, dattestOr)
@@ -912,7 +954,7 @@ fwrite(my_sub_5,
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832), 
-                        "Data Submission" = c(0.8176, 0.8197),
+                        "Data Submission" = c(0.8174, 0.8197),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward"))
 
@@ -924,7 +966,12 @@ kable(puntuaciones) %>%
 
 Efectivamente, __hemos conseguido un mejor _score_ que el obtenido en clase__.
 
-### 3.1.2 Aplicando lumping sobre ward y funder (mediana)
+```{r}
+# Guardamos el dataset
+fwrite(datcompleto, file = "./datcompleto_clean_text.csv")
+```
+
+### 3.1.2 Lumping sobre ward y funder (mediana)
 
 Tras la mejora en el modelo anterior, todavía quedan demasiadas categorías en _ward_ y _funder_, concretamente 2098 y 2110 categorías, respectivamente. Además, si echamos un vistazo a la proporción de aparición de las diferentes categorías de cada variable, mediante la función _prop.table_:
 
@@ -951,7 +998,7 @@ datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
 sum(length(unique(datcompleto[, fe_ward])))
 ```
 
-En el caso de _funder_, aproximamos a  2e-05:
+En el caso de _funder_, __aproximamos a  2e-05__:
 
 ```{r}
 #-- fe_funder
@@ -984,10 +1031,10 @@ my_model_6 <- fit_random_forest(formula, train)
 39.081 sec elapsed
 ```
 
-En relación con el modelo anterior, el hecho de disminuir el número de categorías ha mejorado el resultado en el conjunto _train_ (pasando de 0.8149832 a 0.8159764). A continuación, analicemos el conjunto _test_:
+En relación con el modelo anterior, el hecho de disminuir el número de categorías ha mejorado el resultado en el conjunto _train_ (pasando de 0.8149 a 0.8159). A continuación, analicemos el conjunto _test_:
 
 ```{r, eval=FALSE}
-my_sub_6 <- make_predictions(my_model_5, dattestOr)
+my_sub_6 <- make_predictions(my_model_6, dattestOr)
 # guardo submission
 fwrite(my_sub_6, 
     file = "../submissions/06_lumping_y_fe_sobre_funder_ward_mediana.csv")
@@ -995,7 +1042,7 @@ fwrite(my_sub_6,
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)"))
@@ -1006,11 +1053,16 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
+```{r, echo=FALSE}
+# Guardamos el dataset
+fwrite(datcompleto, file = "./datcompleto_clean_text_lumping_mediana.csv")
+```
+
 __Observamos que incluso en el conjunto _test_ el _score_ ha aumentado a 0.8212__.
 
-### 3.1.3 Aplicando lumping sobre ward y funder (primer y tercer cuartil)
+### 3.1.3 Lumping sobre ward y funder (primer y tercer cuartil)
 
-En el apartado anterior, aplicamos _lumping_ sobre aquellas categorías cuya proporción de aparición se situase por debajo de la mediana, aproximadamente. No obstante, ¿Y si aplicamos el punto de corte sobre el primer o tercer cuartil? Es decir, si recordamos la salida del _summary_ anterior:
+En el apartado anterior, aplicamos _lumping_ sobre aquellas categorías cuya proporción de aparición se situase por debajo de la mediana, aproximadamente. No obstante, __¿Y si aplicamos el punto de corte sobre el primer o tercer cuartil?__ Es decir, si recordamos la salida del _summary_ anterior:
 
 ```{r}
 prop_categorias_ward   # fe_ward
@@ -1020,11 +1072,15 @@ prop_categorias_ward   # fe_ward
 prop_categorias_funder # fe_funder
 ```
 
-Podríamos aplicar _lumping_ sobre el primer cuartil, de forma aproximada, o bien sobre el tercer cuartil. De este modo, __podemos comprobar si agrupando un mayor o menor número de categorías conseguimos mejorar la puntuación__ ("jugar con el punto de corte").
+Podríamos aplicar _lumping_ sobre el primer cuartil, de forma aproximada, o bien sobre el tercer cuartil. De este modo, __podemos comprobar si agrupando un mayor o menor número de categorías conseguimos mejorar la puntuación__ ("jugar con el punto de corte"). Para ello, recuperamos nuevamente el _dataset_ obtenido tras aplicar la función _clean_text_:
+
+```{r}
+datcompleto <- fread("./datcompleto_clean_text.csv")
+```
 
 #### 3.1.3.1 Sobre el primer cuartil
 
-```{r, eval = FALSE}
+```{r}
 #-- fe_ward (primer cuartil: 1.751e-04, aplicamos el punto de corte sobre 2e-04 aprox.)
 datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 2e-04, other_level = "other")]
 datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
@@ -1033,21 +1089,13 @@ datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
 sum(length(unique(datcompleto[, fe_ward])))
 ```
 
-```
-## [1] 1483
-```
-
-```{r, eval = FALSE}
+```{r}
 #-- fe_funder (primer cuartil: 1.347e-05, aplicamos el punto de corte sobre 2e-05 aprox.)
 datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 2e-05, other_level = "other")]
 datcompleto$fe_funder <- as.character(datcompleto$fe_funder)
 
 # Pasamos de 2110 a 999 categorias (primer cuartil = mediana)
 sum(length(unique(datcompleto[, fe_funder])))
-```
-
-```
-## [1] 999
 ```
 
 Una vez aplicado _lumping_, recalculamos el modelo:
@@ -1086,7 +1134,11 @@ Observamos que manteniendo un mayor número de categorías, el _score_ obtenido 
 
 #### 3.1.3.2 Sobre el tercer cuartil
 
-```{r, eval = FALSE}
+```{r}
+datcompleto <- fread("./datcompleto_clean_text.csv")
+```
+
+```{r}
 #-- fe_ward (primer cuartil: 6.330e-04, aplicamos el punto de corte sobre 7e-04 aprox.)
 datcompleto[, fe_ward := fct_lump_prop(datcompleto[,fe_ward], 7e-04, other_level = "other")]
 datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
@@ -1095,21 +1147,13 @@ datcompleto$fe_ward <- as.character(datcompleto$fe_ward)
 sum(length(unique(datcompleto[, fe_ward])))
 ```
 
-```
-## [1] 452
-```
-
-```{r, eval = FALSE}
+```{r}
 #-- fe_funder (primer cuartil: 9.428-05, aplicamos el punto de corte sobre 1e-04 aprox.)
 datcompleto[, fe_funder := fct_lump_prop(datcompleto[,fe_funder], 1e-04, other_level = "other")]
 datcompleto$fe_funder <- as.character(datcompleto$fe_funder)
 
 # Pasamos de 2110 a 502 categorias
 sum(length(unique(datcompleto[, fe_funder])))
-```
-
-```
-## [1] 502
 ```
 
 ```{r, eval = FALSE}
@@ -1145,11 +1189,11 @@ kable(data.frame("Train accuracy" = c(0.8159764, 0.8159259, 0.8146633),
 
 Comprobamos que, pese a mejorar el _score_ del modelo al aplicar el punto de corte sobre el tercer cuartil, el resultado obtenido sobre la mediana continua siendo mejor.
 
-Por tanto, __sobre las variables _fe_ward_ y _fe_funder_ aplicamos _lumping_ sobre la mediana de proporción de aparición de cada una de sus categorías__, reduciendo el número a 904 y 999, respectivamente.
+Por tanto, __sobre las variables _fe_ward_ y _fe_funder_ aplicamos _lumping_ sobre la mediana de proporción de aparición de cada una de sus categorías__, reduciendo su número a 904 y 999, respectivamente.
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8159259, 0.8146633), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8196, 0.8203),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8196, 0.8203),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -1172,13 +1216,17 @@ Pese a aplicar _lumping_ sobre ambas variables, continuamos teniendo demasiadas 
 
 4. _Word Embedding_
 
-De este modo, en caso de que alguna de las técnicas anteriores, sobre las variables _ward_ y _funder_, mejore el _score_ (0.8212), __se aplicará al resto de variables categóricas__.
+De este modo, en caso de que alguna de las técnicas anteriores, sobre las variables _ward_ y _funder_, mejore el _score_ (0.8212), __se aplicará al resto de variables categóricas__. Nuevamente, recuperamos el _dataset_ sobre el que se ha obtenido el mejor _score_ (clean text + lumping mediana):
+
+```{r}
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
+```
 
 ### 3.1.4 Aplicando Hashing Encoding
 
 También conocido como _Feature Hashing_, consiste en transformar un elevado conjunto de características en un vector, por medio de una función de transformación o _hash function_. No obstante, uno de los principales incovenientes de dicha técnica reside en el ratio de colisión o _collision rate_, es decir, __cuando dos categorías presentan el mismo resultado en la función hash__. Por tanto, __cuanto mayor sea el tamaño de la función _hash_, menor será el ratio de colisión__.
 
-Para ello, haremos uso del paquete _FeatureHashing_ disponible en CRAN. Dicho paquete dispone de una función denominada _hash.size_, el cual indica __el tamaño mínimo (teórico) que permite reducir al mínimo el ratio de colisión entre valores _hash___:
+Para ello, haremos uso del paquete _FeatureHashing_ disponible en CRAN. Dicho paquete dispone de la función _hash.size_, el cual indica __el tamaño mínimo (teórico) que permite reducir al mínimo el ratio de colisión entre valores _hash___:
 
 ```{r}
 #-- Feature Hashing (tras aplicar lumping sobre funder y ward)
@@ -1254,7 +1302,7 @@ fwrite(my_sub_9, file = "./submissions/09_lumping_fe_y_hashing_sobre_funder_ward
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8159259, 0.8146633, 0.8158418), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8196, 0.8203, 0.8214),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8196, 0.8203, 0.8214),
                         row.names = c("Mejor accuracy en el concurso",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                                       "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -1272,13 +1320,13 @@ Sorprendentemente, aplicando _Feature Hashing_ conseguimos mejorar el _score_ de
 
 Dado que 2048 es el tamaño mínimo que permite reducir el ratio de colisión entre valores _hash_, ¿Y si reducimos dicho tamaño a la mitad, 1024? ¿Mejorará el modelo al reducir el número de categogrías únicas?
 
-```{r, eval=FALSE}
-mat_hash_2 <- hashed.model.matrix(~., datcompleto[, c("fe_funder", "fe_ward")], 2^10, create.mapping = TRUE, )
-mean(duplicated(hash.mapping(mat_hash_2))) # 0.5491329
+```{r, echo=FALSE}
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
 ```
 
-```
-## 0.5491329
+```{r}
+mat_hash_2 <- hashed.model.matrix(~., datcompleto[, c("fe_funder", "fe_ward")], 2^10, create.mapping = TRUE, )
+mean(duplicated(hash.mapping(mat_hash_2))) # 0.5491329
 ```
 
 Lógicamente, al disminuir el tamaño el ratio de colisión aumenta (de 0.35 a 0.55, aproximadamente). Si entrenamos nuevamente el modelo con la nueva matriz _hash_:
@@ -1293,7 +1341,7 @@ my_model_9 <- fit_random_forest(formula, train)
 35.918 sec elapsed
 ```
 
-Aparentemente, el valor obtenido en el conjunto de entrenamiento mejora relativamente (de 0.815 a 0.816). Sin embargo, al predecir el conjunto _test_, observamos que el _score_ empeora:
+Aparentemente, el valor obtenido en el conjunto de entrenamiento mejora ligeramente (de 0.815 a 0.816). Sin embargo, al predecir el conjunto _test_, observamos que el _score_ empeora:
 
 ```{r, eval=FALSE}
 my_sub_9 <- make_predictions(my_model_9, test)
@@ -1316,7 +1364,7 @@ kable(data.frame("Train accuracy" = c(0.8158418, 0.8162121),
 Otra alternativa a _Feature Hashing_ consiste en __sustituir cada categoría en _fe_funder_ y _fe_ward_ por su frecuencia de aparición correspondiente__, un tipo de codificación con el que obtuvo buenos resultados el grupo ganador y, por ello, debemos comprobar si mejora el _score_ obtenido en _Feature Hashing_ (0.8214):
 
 ```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto.csv", data.table = TRUE)
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
 ```
 
 ```{r}
@@ -1351,7 +1399,7 @@ En relación al _accuracy_ obtenido en el entrenamiento, el porcentaje es ligera
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8158418, 0.8154882), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216),
                         row.names = c("Mejor accuracy en el concurso",
                         "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                         "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -1366,7 +1414,7 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
-Comprobamos que __sustituyendo las categorías en _fe_ward_ y _fe_funder_ por sus frecuencias absolutas (en lugar de aplicar _FeatureHashing_), el _score_ obtenido aumenta de 0.8214 a 0.8216__.
+Comprobamos que __sustituyendo las categorías de _fe_ward_ y _fe_funder_ por sus frecuencias absolutas (en lugar de aplicar _FeatureHashing_), el _score_ obtenido aumenta de 0.8214 a 0.8216__.
 
 ### 3.1.6 Aplicando Target Encoding
 
@@ -1388,7 +1436,7 @@ Otra técnica propuesta para la codificación de _fe_ward_ y _fe_funder_ consist
 ```
 
 ```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto.csv", data.table = TRUE)
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
 ```
 
 Para aplicar _target_encoding_, recuperamos únicamente las variables categóricas _fe_ward_ y _fe_funder_:
@@ -1509,7 +1557,7 @@ fwrite(my_sub_11, file = "./submissions/11_lumping_fe_sobre_funder_ward_target_e
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8158418, 0.8154882, 0.8154377), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164),
                         row.names = c("Mejor accuracy en el concurso",
                         "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                         "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -1529,7 +1577,7 @@ Como podemos comprobar en la tabla resultante, aplicando _Target Encoding_ ha em
 
 #### 3.1.6.2 Empleando la suma
 
-Revisando la documentación de la función _build_target_encoding_, me llamó la atención un ejemplo propuesto en el que se emplea la función de agregación _sum_ en lugar de la media. A modo de ejemplo, supongamos el siguiente _data.table_ con diferentes bombas de agua:
+Revisando la documentación de la función _build_target_encoding_, me llamó la atención un ejemplo propuesto en el que [se emplea la función de agregación _sum_ en lugar de la media](https://rdrr.io/cran/dataPreparation/man/build_target_encoding.html). A modo de ejemplo, supongamos el siguiente _data.table_ con diferentes bombas de agua:
 
 ```
      fe_funder    fe_ward   status_group
@@ -1542,7 +1590,7 @@ Revisando la documentación de la función _build_target_encoding_, me llamó la
 0: non functional ;  1: functional needs repair ; 2: functional
 ```
 
-¿Y si en lugar de aplicar la media __realizamos la suma de los pesos de cada variable objetivo__? Es decir, dado que cada categoría tiene un valor asignado (0, 1 o 2), una posibilidad sería __calcular (sumar) el total de la variable objetivo por cada categoría__. De este modo:
+¿Y si en lugar de aplicar la media __realizamos la suma de los pesos de cada variable objetivo__? Es decir, dado que cada categoría tiene un valor asignado (0, 1 o 2), una posibilidad sería __calcular (sumar) el total de la variable objetivo por cada categoría__, de este modo:
 
 ```
      fe_funder    fe_ward   status_group     fe_funder_sum     fe_ward_sum   
@@ -1581,7 +1629,7 @@ dat_encoded <- build_target_encoding(train,
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 0.8158418, 0.8154882, 0.8154377, 0.814899), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215),
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215),
                         row.names = c("Mejor accuracy en el concurso",
                         "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
                         "Num + Cat (> 1 & < 2100) fe anteriores + lumping sobre funder + ward (mediana)",
@@ -1602,18 +1650,18 @@ Curiosamente, el resultado obtenido __mejora con respecto al cálculo mediante l
 
 ### 3.1.7 Aplicando Word Embedding
 
-Sin duda, uno de los grandes avances en el campo de la lingüística han sido las técnicas de _Word Embedding_, que permiten __la representación vectorial (n-dimensional) de una palabra o _token___. Por ello, de cara a la práctica se planteó la posibilidad de __realizar una representación vectorial de las diferentes categorías en las columnas _fe_ward_ y _fe_funder___, con el objetivo de observar si la precisión del modelo mejora o no.
+Sin duda, uno de los grandes avances en el campo del procesamiento del lenguaje han sido las técnicas de _Word Embedding_, que permiten __la representación vectorial (n-dimensional) de una palabra o _token___. Por ello, de cara a la práctica se planteó la posibilidad de __realizar una representación vectorial de las diferentes categorías en las columnas _fe_ward_ y _fe_funder___, con el objetivo de observar si la precisión del modelo mejora o no.
 
-Para ello, haremos uso de dos paquetes:
+Para ello, haremos uso de dos paquetes, pertenecientes al conjunto de librerías _tidymodels_:
 
-1. _embed_: permite la creación de modelos _word-embedding_, mediante el uso de la librería _TensorFlow_.
+1. [_embed_](https://embed.tidymodels.org): permite la creación de modelos _word-embedding_, mediante el uso de la librería _TensorFlow_.
 
-2. _recipes_: pertenciente al paquete _tidymodels_, se emplea fundamentalmente para el preprocesamiento de datos, mediante el uso de "recetas" definidas de forma secuencial por medios de _pipelines_.
+2. [_recipes_](https://recipes.tidymodels.org): se emplea fundamentalmente para el preprocesamiento de datos, mediante el uso de "recetas" definidas de forma secuencial por medios de _pipelines_.
 
 En primer lugar, y una vez aplicado _lumping_ sobre _ward_ y _funder_, __dividimos nuevamente los datos en entrenamiento y test__:
 
 ```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto.csv")
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
 ```
 
 ```{r}
@@ -1631,7 +1679,7 @@ test <- datcompleto[c(fila_test:nrow(datcompleto)),]
 
 Una vez dividido el conjunto de datos, elaboramos el modelo _embedded_. Para ello, mediante la función _recipe_ elaboramos una "receta" para la transformación de variables, concretamente sobre _fe_ward_, _fe_funder_ y _status_group_. Sobre dicha receta o fórmula aplicamos la función _step_embed_ del paquete _embed_, con la que realizar la transformación _Word Embedding_. Por defecto, el número de dimensiones es de 2, por lo que probaremos inicialmente con dicho valor:
 
-```{r, eval=FALSE}
+```{r}
 # 2. Elaboramos el modelo embedded (empezando con dimensionalidad 2)
 emb_cols_target <- c(emb_cols, "status_group")
 
@@ -1648,7 +1696,7 @@ for(feat in emb_cols){
 
 Finalmente, una vez elaborada la "receta" para la transformación de ambas columnas, __lo aplicamos inicialmente sobre el conjunto _train_ y posteriormente sobre el conjunto _test___, haciendo uso de las funciones _prep_ y _bake_, respectivamente:
 
-```{r, eval=FALSE}
+```{r}
 # 3. Creacion de las columnas Word Embeddings (train y test)
 #    Sobre el conjunto train, elaboramos la "receta": word_embeddings
 train_prepped <- prep(base_recipe, train[, ..emb_cols_target])
@@ -1666,11 +1714,6 @@ test_final  <- cbind(test_prepped,
 train_final[1, c("fe_ward_embed_1", "fe_ward_embed_2", "fe_funder_embed_1", "fe_funder_embed_2")]
 ```
 
-```
-##    fe_ward_embed_1 fe_ward_embed_2 fe_funder_embed_1 fe_funder_embed_2
-## 1:    -0.002076114      0.02586615        0.03580488        0.01154404
-```
-
 Como podemos comprobar, cada categoría se transforma en dos columnas con su representación bi-dimensional correspondiente ¿Mejorará el modelo si aplicamos Word Embedding sobre _fe_ward_ y _fe_funder_? 
 
 ```{r, eval=FALSE}
@@ -1684,7 +1727,7 @@ my_sub_12  <- make_predictions(my_model_12, test_final)
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 
                                              0.8158418, 0.8154882, 0.8154377, 0.814899, 0.8155724), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
                                               0.8204),
                         row.names = c("Mejor accuracy en el concurso",
                         "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
@@ -1727,7 +1770,7 @@ A la vista de las transformaciones anteriores, la que mejor resultado ha obtenid
 Para ello, y una vez aplicado _lumping_ sobre _ward_ y _funder_, __realizamos la imputación de las variables categóricas (character) por sus correspondientes frecuencias absolutas__. Inicialmente, almacenamos en una variable los nombres de las columnas a imputar:
 
 ```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto.csv")
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana.csv")
 ```
 
 ```{r}
@@ -1735,7 +1778,7 @@ datcompleto <- fread("../temp_datcompleto.csv")
 cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with = FALSE])
 ```
 
-Antes de realizar la imputación, guardamos en una variable el número de valores únicos de cada columna, con el fin de contrastar posteriormente la variación del número de categorías:
+Antes de realizar la imputación, guardamos en una variable el número de valores únicos de cada columna, con el fin de contrastar posteriormente la variación en el número de categorías:
 
 ```{r}
 #   Antes de imputar
@@ -1783,7 +1826,7 @@ my_sub_13   <- make_predictions(my_model_13, test)
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 
                                              0.8158418, 0.8154882, 0.8154377, 0.814899, 0.8155724,
                                              0.8157071), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
                                               0.8204, 0.8226),
   row.names = c("Mejor accuracy en el concurso",
   "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
@@ -1805,7 +1848,7 @@ kable(puntuaciones) %>%
 
 Codificando las variables categóricas por sus frecuencias absolutas __mejoramos los resultados obtenidos en el conjunto _test___, pasando de 0.8216 a 0.8226.
 
-### 3.1.9 Añadiendo las variables scheme_name e installer
+### 3.1.9 Variables scheme_name e installer
 
 Hasta ahora, hemos trabajado con variables categóricas que tuviesen menos de 2100 valores únicos. Sin embargo, existen variables con un mayor número de categorías como _scheme_name_, _installer_, _subvillage_ y _wpt_name_. Con el propósito de seguir un orden, __empezamos añadiendo a nuestro dataset aquellas variables con menos de 10000 categorías, esto es, _scheme_name_ e _installer___.
 
@@ -1817,8 +1860,10 @@ Sobre dichos campos aplicaremos exactamente los mismos pasos que los realizados 
 
 3. Reemplazar las categorías por sus frecuencias absolutas
 
-```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto_2.csv", data.table = TRUE)
+```{r}
+# Incluimos las variables scheme_name e installer en datcompleto
+datcompleto[, scheme_name := datcat_mas_1000_mas_logicas_dr[, scheme_name]]
+datcompleto[, installer   := datcat_mas_1000_mas_logicas_dr[, installer]]
 ```
 
 ```{r}
@@ -1877,7 +1922,7 @@ datcompleto[, installer := NULL]
 length(unique(datcompleto[, fe_installer]))
 ```
 
-Finamente, una vez reducidas ambas categorías al 50 %, aproximadamente, __realizamos la transformación por frecuencias absolutas__:
+Finalmente, una vez reducido el número de categorías al 50 %, aproximadamente, __realizamos la transformación por frecuencias absolutas__:
 
 ```{r}
 #-- Creamos una funcion para evitar redundancia de codigo
@@ -1950,7 +1995,7 @@ Curiosamente, si descartamos la variable _installer_, el _score_ del modelo mejo
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 
                                              0.8158418, 0.8154882, 0.8154377, 0.814899, 0.8155724,
                                              0.8157071, 0.8161616), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
+                        "Data Submission" = c(0.8174, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
                                               0.8204, 0.8226, 0.8239),
   row.names = c("Mejor accuracy en el concurso",
   "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
@@ -1971,12 +2016,20 @@ kable(puntuaciones) %>%
   row_spec(color_me, bold = TRUE, background = "#4D934D")
 ```
 
+```{r}
+# Guardamos datcompleto
+datcompleto[, fe_installer := NULL]
+fwrite(datcompleto, 
+       file = "./datcompleto_clean_text_lumping_mediana_freq_abs_cat_menos_installer.csv")
+```
+
 ### 3.1.10 Añadiendo subvillage
 
 Hasta el momento, hemos empleado variables con menos de 10.000 valores únicos __¿Y si damos nuevamente un salto y añadimos la variable _subvillage_?__ Por supuesto, realizando los mismos pasos que en el resto de variables categóricas (limpieza de textos, _lumping_ y recategorización a frecuencias absolutas):
 
-```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto_3.csv", data.table = TRUE)
+```{r}
+# Incluimos la variable subvillage en dat_completo
+datcompleto[, subvillage := datcat_mas_1000_mas_logicas_dr[, subvillage]]
 ```
 
 ```{r}
@@ -2051,31 +2104,16 @@ kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8162963),
   row_spec(1:3, background = "white")
 ```
 
-Incluso sin depurar la variable, el _score_ obtenido continua siendo menor al mejor modelo obtenido. No obstante, podemos ir analizando la evolución del _score_ conforme aplicamos técnicas de depuración como _clean_text_ o _lumping_:
-
-```{r, echo=FALSE}
-puntuaciones <- data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8162963, 0.81633, 0.816633), 
-                        "Data Submission" = c(0.8239, 0.8219, 0.8220, 0.8222, 0.8221),
-                        row.names = c("Mejor accuracy hasta el momento",
-                                      "Num + Cat (> 1 & < 40000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer)",
-                                      "Sin depurar subvillage",
-                                      "Solo clean_text",
-                                      "clean_text + lumping"))
-
-color_me <- which(puntuaciones$Data.Submission == 0.8239)
-kable(puntuaciones) %>%
-  kable_styling() %>%
-  row_spec(color_me, bold = TRUE, background = "#4D934D")
-```
-
-Pese al haber aplicado funciones como _clean_text_ o _lumping_ (sin imputar por frecuencias aboslutas sobre _subvillage_), no nos proporciona mejoría alguna al modelo, __por lo que descartamos añadir dicha columna__.
+Incluso sin depurar la variable, el _score_ obtenido continua siendo menor al mejor modelo obtenido,  __por lo que descartamos añadir dicha columna__.
 
 ### 3.1.11 Añadiendo wpt_name
 
 Junto con _subvillage_, nos queda por añadir una variable con un elevado número de categorías: _wpt_name_, con 45.684 valores únicos. Del mismo modo que en el apartado anterior, aplicamos el mismo proceso de depuración sobre dicha variable.
 
-```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto_4.csv", data.table = TRUE)
+```{r}
+# Eliminamos fe_subvillage e incluimos la variable wpt_name en dat_completo
+datcompleto[, subvillage := NULL]
+datcompleto[, wpt_name   := datcat_mas_1000_mas_logicas_dr[, wpt_name]]
 ```
 
 ```{r}
@@ -2112,7 +2150,7 @@ cat_cols <- names(datcompleto[, which(sapply(datcompleto, is.character)), with =
 datcompleto <- impute_freq_abs(cat_cols)
 ```
 
-__Cabe destacar la considerable disminución en el número de categorías__, por lo que es posible que estemos perdiendo información relevante de cara al modelo, del mismo modo que sucedía con _subvillage_. De hecho, si entrenamos el nuevo modelo:
+__Cabe destacar la considerable disminución en el número de categorías__, por lo que es posible que estemos perdiendo información relevante de cara al modelo, del mismo modo que sucedía con _subvillage_. No obstante, si entrenamos el nuevo modelo:
 
 ```{r, eval=FALSE}
 # Train
@@ -2145,24 +2183,9 @@ kable(data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8155892),
   row_spec(1:3, background = "white")
 ```
 
-Por el contrario, si mantenemos la variable original, el hecho de disponer de un elevado número de categorías provoca una disminución en el _score_ del modelo ¿Y si en lugar de aplicar la imputación por freq. abs. sobre _wpt_name_ aplicamos tan solo _clean_text_ o _clean_text_ más _lumping_?
+Por el contrario, si mantenemos la variable original, el hecho de disponer de un elevado número de categorías provoca una disminución en el _score_ del modelo.
 
-```{r, echo=FALSE}
-puntuaciones <- data.frame("Train accuracy" = c(0.8161616, 0.8165993, 0.8155892, 0.8153367, 0.8167508), 
-                        "Data Submission" = c(0.8239, 0.8236, 0.8220, 0.8207, 0.8227),
-                        row.names = c("Mejor accuracy hasta el momento",
-                                      "Num + Cat (> 1 & < 60000) fe anteriores + lumping (mediana) + freq. abs. cat. (sin installer y subvillage)",
-                                      "Sin depurar wpt_name",
-                                      "Solo clean_text",
-                                      "clean_text + lumping"))
-
-color_me <- which(puntuaciones$Data.Submission == 0.8239)
-kable(puntuaciones) %>%
-  kable_styling() %>%
-  row_spec(color_me, bold = TRUE, background = "#4D934D")
-```
-
-Incluso aplicando _clean_text_ y/o _lumping_, el _score_ del modelo no mejora, a la vista de los resultados anteriores, por lo que __descartamos la variable _wpt_name___. Por tanto, de las nuevas variables con un elevado número de categorías __nos quedaremos únicamente con _ward_, _funder_ y _scheme_name___:
+Por tanto, de las variables con un elevado número de categorías __nos quedaremos únicamente con _ward_, _funder_ y _scheme_name___:
 
 ```{r, echo=FALSE}
 knitr::kable(data.frame("Train accuracy" = c(0.8161616), 
@@ -2178,7 +2201,12 @@ knitr::kable(data.frame("Train accuracy" = c(0.8161616),
 Como últimas variables, nos quedan por añadir _permit_ y _public meeting_, ambas variables lógicas. Sin embargo, nos encontramos un problema: __ambas columnas presentan valores _missing___, tanto en el conjunto _train_:
 
 ```{r, echo=FALSE}
-datcompleto <- fread("../temp_datcompleto_5.csv", data.table = TRUE)
+datcompleto <- fread("./datcompleto_clean_text_lumping_mediana_freq_abs_cat_menos_installer.csv")
+
+# Incluimos las variables permit y public_meeting en datcompleto
+datcompleto[, permit           := datcat_mas_1000_mas_logicas_dr[, permit]]
+datcompleto[, public_meeting   := datcat_mas_1000_mas_logicas_dr[, public_meeting]]
+
 dattestOr   <- fread("../dattestOr.csv", data.table = TRUE)
 ```
 
@@ -2243,10 +2271,10 @@ kable(data.frame("Train accuracy" = c(0.8161616, 0.8168855),
 
 Añadiendo ambas variables lógicas, el modelo ha mejorado de 0.8239 a 0.8251, __superando incluso a la mejor puntuación obtenida en clase__ (0.8248).
 
-No obstante, si nos fijamos en el gráfico de importancia resultante:
+No obstante, si hacemos "zoom" sobre el gráfico de importancia:
 
 ```{r, echo=FALSE, fig.align='center', fig.height=12, fig.width=12}
-knitr::include_graphics('../charts/19_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_y_permit_public_meeting.png')
+include_graphics('../charts/19_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_y_permit_public_meeting.png')
 ```
 
 Observamos que las variables binarias _is_na_ apenas tienen importancia en el modelo ¿Y si las eliminamos?
@@ -2283,7 +2311,7 @@ Nuevamente, en ninguno de los casos el modelo se ve mejorado. __Por tanto, mante
 puntuaciones <- data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.8146633, 0.8159259, 
                                              0.8158418, 0.8154882, 0.8154377, 0.814899, 0.8155724,
                                              0.8157071, 0.8161616, 0.8168855), 
-                        "Data Submission" = c(0.8176, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
+                        "Data Submission" = c(0.8184, 0.8197, 0.8212, 0.8203, 0.8196, 0.8214, 0.8216, 0.8164, 0.8215,
                                               0.8204, 0.8226, 0.8239, 0.8251),
   row.names = c("Mejor accuracy en el concurso",
   "Num + Cat (> 1 & < 2100) fe anteriores + fe_funder + fe_ward",
@@ -2325,7 +2353,7 @@ Comenzando añadiendo nuevamente el campo _year_ al _dataset_ depurado hasta el 
 
 ```{r, eval=FALSE}
 #-- Icluimos year
-year <- c(year(dattrainOr$date_recorded), year(dattestOr$date_recorded))
+year <- c(year(datcat_mas_1000_mas_logicas_dr[, date_recorded]))
 datcompleto_imp$fe_dr_year <- year
 ```
 
@@ -2370,7 +2398,7 @@ kable(data.frame("Train accuracy" = c(0.8168855, 0.8173064, 0.8165657),
 Pese a incluir tantos campos, el modelo empeora. Analicemos el gráfico de importancia:
 
 ```{r, echo=FALSE}
-knitr::include_graphics("../charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_otros_campos.png")
+include_graphics("../charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_otros_campos.png")
 ```
 
 __Nota: para una mejor visualización, se han eliminado el resto de variables__.
@@ -2430,7 +2458,7 @@ Para empezar, __obtenemos una fecha de referencia, la fecha más reciente de la 
 
 ```{r}
 #-- Obtenemos una fecha de referencia (mas reciente)
-date_recorded <- c(dattrainOr$date_recorded, dattestOr$date_recorded)
+date_recorded    <- c(datcat_mas_1000_mas_logicas_dr$date_recorded)
 fecha_referencia <- max(ymd(date_recorded)) # Tenemos 2013-12-03
 fecha_referencia
 ```
@@ -2580,7 +2608,7 @@ Continuando con XGboost, nos encontramos con los siguientes parámetros a tunear
 4. _colsample_bytree_ o número de variables a sortear por cada iteración.
 5. _colsample_bylevel_ o número de variables a sortear por cada nuevo nivel.
 6. _colsample_bynode_ o número de variables a sortear cada vez que se tenga que realizar una división en el árbol.
-7. _subsample_ o porcentaje de "submuestra" a escoger durante el entrenamiento.
+7. _subsample_ o porcentaje de "submuestras" a escoger durante el entrenamiento.
 
 Nuevamente, para el tuneo del XGboost __comenzamos tuneando el número de iteraciones o _nrounds___. No obstante, y dado que con un _mtry_ bajo obtuvimos buenos resultados en _Random Forest_, de cara a XGboost __realizamos un sorteo de columnas a través de la variable _colsample_bytree___, concretamente un porcentaje bajo (0.3), __de forma que se sortee un pequeño subconjunto de variables (30 %) en lugar de todas las columnas (por defecto)__. Además, de cara a obtener un _accuracy_ "aproximado" del modelo, __empleamos _mlogloss_ como métrica de evaluación (por defecto)__:
 
@@ -2846,7 +2874,7 @@ test_h  <- as.h2o(test)
 #   4. Indicamos un balanceo de clases en la validacion cruzada
 aml <- h2o.automl(x = pred, y = y,
                  training_frame = train_h,
-                 max_models = 10,
+                 max_models = 5,
                  seed = 1234,
                  exclude_algos = c("DeepLearning", "StackedEnsemble"),
                  balance_classes = TRUE
@@ -2870,8 +2898,7 @@ Tras elaborar los modelos _automl_, analicemos las _submissions_:
 
 ```{r, echo=FALSE}
 puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8272, 0.8206, 0.8101, 
-                                                 0.8118, 0.8020, 0.8079, 0.8137, 0.8077,
-                                                 0.8027, 0.8137, 0.7945, 0.6805),
+                                                 0.8118, 0.8020, 0.8079, 0.8137),
                 row.names = c("Mejor score Feature Egineering",
                 "Mejor score Random Forest",
                 "Mejor score XGboost",
@@ -2880,12 +2907,7 @@ puntuaciones <- data.frame("Data Submission" = c(0.8251, 0.8253, 0.8272, 0.8206,
                 "XGBoost_1_AutoML",
                 "XGBoost_3_AutoML",
                 "GBM_5_AutoML",
-                "GBM_4_AutoML",
-                "GBM_3_AutoML",
-                "GBM_2_AutoML",
-                "DRF_1_AutoML",
-                "GBM_1_AutoML",
-                "GLM_1_AutoML"))
+                "GBM_4_AutoML"))
 
 color_me <- which(puntuaciones$Data.Submission == 0.8272)
 kable(puntuaciones) %>%
@@ -3098,14 +3120,11 @@ freq_despues_fe
 sum(is.na(dattestOr$permit))
 sum(is.na(dattestOr$public_meeting))
 
-datcompleto_aux <- fread("./data/datcompleto_imp_ap_15.csv")
-
 # Ordenamos las columnas para obtener la misma imputacion de las variables logicas con missRanger
 # dado que al variar el orden de las columnas, la imputacion tambien varia
 cols_orden <- c(names(datcompleto)[c(1:9)],  "construction_year", "fe_cyear", 
                 "fe_dist", "fe_cant_agua", "fe_dr_year_cyear_diff", "fe_dr_month", 
                 "public_meeting", "permit", names(datcompleto)[c(18:38)])
-
 
 setcolorder(datcompleto, cols_orden)
 

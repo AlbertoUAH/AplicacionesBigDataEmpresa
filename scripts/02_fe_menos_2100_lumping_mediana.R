@@ -31,7 +31,7 @@ dattrainOrlab$status_group <- NULL
 
 #-- Nos traemos funder, ward (menos de 2100 categorias)
 dattrainOrlab$funder <- dattrainOr$funder
-dattrainOrlab$ward <- dattrainOr$ward
+dattrainOrlab$ward   <- dattrainOr$ward
 
 #-- Unimos train y test
 columnas_test  <- names(dattestOr)[names(dattestOr) %in% names(dattrainOrlab)]

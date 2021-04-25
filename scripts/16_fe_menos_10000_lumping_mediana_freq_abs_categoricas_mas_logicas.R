@@ -57,11 +57,11 @@ datcompleto_imp$fe_dr_month_count <- round(as.numeric(fecha_referencia - ymd(dat
 # datcompleto_imp$fe_dr_month_count <- time_length(interval(ymd(date_recorded), fecha_referencia), unit = "months")
 
 #-- Si incluimos otros campos, mediante el paquete lubridate
-# datcompleto_imp$fe_dr_day     <- day(date_recorded)        # Dia
-# datcompleto_imp$fe_dr_wday    <- wday(date_recorded)       # Dia de la semana
-# datcompleto_imp$fe_dr_qday    <- qday(date_recorded)       # Dia del cuatrimestre
-# datcompleto_imp$fe_dr_week    <- week(date_recorded)       # Semana
-# datcompleto_imp$fe_dr_quarter <- quarter(date_recorded)    # Cuatrimestre
+datcompleto_imp$fe_dr_day     <- day(date_recorded)        # Dia
+datcompleto_imp$fe_dr_wday    <- wday(date_recorded)       # Dia de la semana
+datcompleto_imp$fe_dr_qday    <- qday(date_recorded)       # Dia del cuatrimestre
+datcompleto_imp$fe_dr_week    <- week(date_recorded)       # Semana
+datcompleto_imp$fe_dr_quarter <- quarter(date_recorded)    # Cuatrimestre
 
 #-- Si incluimos si es o no fin de semana
 # datcompleto_imp[, fe_is_weekend := ifelse(fe_dr_wday %in% c(1,7), 1, 0)]
@@ -141,8 +141,8 @@ ggplot(impor_df[impor_df$vars %in% c("fe_dr_day", "fe_dr_wday", "fe_dr_qday", "f
        aes(fct_reorder(vars, Importance), Importance)) +
   geom_col(group = 1, fill = "darkred") +
   coord_flip() + 
-  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables') +
-  theme_bw(base_size = 14)
+  labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables (fe sobre date_recorded)') +
+  theme(axis.text.y = element_text(face = "bold", colour = "black", size = 12))
 ggsave('./charts/20_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_mas_logicas_fe_otros_campos.png')
 
 #-- Conclusion: podemos observar como añadir mas variables relacionadas con date_recorded no mejora el modelo

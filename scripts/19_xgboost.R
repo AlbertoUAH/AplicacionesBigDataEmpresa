@@ -84,6 +84,7 @@ prediction_errors_dt <- data.table(ntrees = rep(nrounds, 2),
                                    Tipo =c(rep("Train (1 - mlogloss)", 4), rep("Submission", 4)))
 
 ggplot(prediction_errors_dt, aes(x = ntrees, y = Accuracy, colour = Tipo)) + geom_point() + geom_line() + 
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   geom_label_repel(data = prediction_errors_dt[prediction_errors_dt$ntrees == 500, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + ggtitle("Accuracy del modelo en funcion de nrounds")
 ggsave("./charts/xgboost_nrounds.png")
 
@@ -127,19 +128,18 @@ for(i in seq(1:nrow(search_grid))) {
 # 50 + 0.5 : 0.8159
 
 rm(my_model); rm(xgb_pred); rm(i); rm(my_list)
-prediction_errors_dt_2 <- data.table(Accuracy = c(0.7980, 0.7997, 0.8032, 0.8160, 0.8152, 0.8108, 0.8154, 0.8143, 0.8143,
-                                                0.8178, 0.8133, 0.8131, 0.8182, 0.8156, 0.8135, 0.8159, 0.8154, 0.8139,
+prediction_errors_dt_2 <- data.table(Accuracy = c(0.8178, 0.8133, 0.8131, 0.8182, 0.8156, 0.8135, 0.8159, 0.8154, 0.8139,
                                                 0.8166, 0.8157, 0.8159, 0.8157, 0.8162, 0.8138, 0.8173, 0.8160, 0.8144,
                                                 0.8167, 0.8143, 0.8144),
-                                   colsample_byntree = rep(0.3, 30), max_depth = c(rep(3, 3), rep(6, 3), 
-                                                                                   rep(8, 3), rep(10, 3),
+                                   colsample_byntree = rep(0.3, 21), max_depth = c(rep(10, 3),
                                                                                    rep(15, 3), rep(20, 3),
                                                                                    rep(50, 3), rep(80, 3),
                                                                                    rep(150, 3), rep(200, 3)),
-                                   eta = as.factor(rep(c(0.3, 0.4, 0.5), 10)))
+                                   eta = as.factor(rep(c(0.3, 0.4, 0.5), 7)))
 
 ggplot(prediction_errors_dt_2, aes(x = factor(max_depth), y = Accuracy, group = eta, colour = eta)) + geom_point() + geom_line() + 
-  geom_label_repel(data = prediction_errors_dt_2[prediction_errors_dt_2$max_depth == 15, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  geom_label_repel(data = prediction_errors_dt_2[prediction_errors_dt_2$max_depth == 15 & prediction_errors_dt_2$eta == 0.3, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con nrounds = 500 + colsample_bytree = 0.3 (solo test)")
 ggsave("./charts/xgboost_max_depth_ntrees.png")
 
@@ -177,7 +177,7 @@ prediction_errors_dt_3 <- data.table(Accuracy = c(0.982093, 0.959185, 0.920351, 
 
 ggplot(prediction_errors_dt_3[prediction_errors_dt_3$Tipo == "Test", ],aes(x = factor(eta), y = Accuracy, group = col, col = col)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_3[prediction_errors_dt_3$eta <= 0.05 &
-                                                   prediction_errors_dt_3$Tipo == "Test", ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + theme(legend.position = "none") +
+                                                   prediction_errors_dt_3$Tipo == "Test", ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) + theme(legend.position = "none",  axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con nrounds = 500 + colsample_bytree = 0.3 + max_depth = 15 (solo test)")
 ggsave("./charts/xgboost_eta_parameter.png")
 
@@ -217,6 +217,7 @@ prediction_errors_dt_4 <- data.table(Accuracy = c(0.8238, 0.8257, 0.8240, 0.8228
 ggplot(prediction_errors_dt_4, aes(x = nrounds, y = Accuracy, colour = eta)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_4[prediction_errors_dt_4$eta == 0.02 &
                                                    prediction_errors_dt_4$nrounds == 600, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con colsample_bytree = 0.3 + max_depth = 15 (solo test)")
 ggsave("./charts/xgboost_nrounds_eta_parameter_tunned.png")
 
@@ -254,6 +255,7 @@ prediction_errors_dt_5 <- data.table(Accuracy = c(0.8243, 0.8260, 0.8242, 0.8232
 
 ggplot(prediction_errors_dt_5, aes(x = colsample_bytree, y = Accuracy)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5$colsample_bytree == 0.3, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con nrounds = 600 + eta = 0.02 + max_depth = 15 (solo test)")
 ggsave("./charts/xgboost_colsample_by_tree.png")
 
@@ -295,11 +297,12 @@ for(i in seq(1:nrow(search_grid))) {
 
 rm(my_model); rm(xgb_pred); rm(nround)
 
-prediction_errors_dt_5 <- data.table(Accuracy = c(0.8244, 0.8254, 0.8254, 0.8252, 0.8240, 0.8260),
-                                     subsample = as.factor(c(0.5, 0.6, 0.7, 0.8, 0.9, 1)))
+prediction_errors_dt_5 <- data.table(Accuracy = c(0.8244, 0.8254, 0.8254, 0.8260),
+                                     subsample = as.factor(c(0.5, 0.6, 0.7, 1)))
 
 ggplot(prediction_errors_dt_5, aes(x = subsample, y = Accuracy)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5[, Accuracy] == 0.8260, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con nrounds = 600 + eta = 0.02 + max_depth = 15 + colsample = 0.3 (solo test)")
 ggsave("./charts/xgboost_subsample.png")
 
@@ -313,6 +316,7 @@ prediction_errors_dt_5 <- data.table(Accuracy = c(0.8243, 0.8260, 0.8242, 0.8232
 
 ggplot(prediction_errors_dt_5, aes(x = colsample_bytree, y = Accuracy)) + geom_point() + geom_line() + 
   geom_label_repel(data = prediction_errors_dt_5[prediction_errors_dt_5$colsample_bytree == 0.3, ], aes(y = Accuracy, label = Accuracy), show.legend = FALSE) +
+  theme(axis.text = element_text(face = "bold", colour = "black", size = 11)) +
   ggtitle("Accuracy del modelo con nrounds = 600 + eta = 0.02 + max_depth = 15 (solo test)")
 ggsave("./charts/xgboost_colsample_by_tree.png")
 

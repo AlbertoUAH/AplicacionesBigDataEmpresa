@@ -121,11 +121,11 @@ datcompleto$fe_cant_agua <- ifelse(datcompleto$population == 0,
                                                  datcompleto$population, 3)
 )
 
-#-- month: mes date_recorded
-datcompleto$fe_dr_month           <- month(datcompleto$date_recorded)
-
 #-- fe_dr_year_cyear_diff: año date_recorded - construction_year
 datcompleto$fe_dr_year_cyear_diff <- year(datcompleto$date_recorded) - datcompleto$construction_year
+
+#-- month: mes date_recorded
+datcompleto$fe_dr_month           <- month(datcompleto$date_recorded)
 
 #-- Eliminamos date_recorded
 datcompleto$date_recorded <- NULL
@@ -241,15 +241,17 @@ params = list(
   eta               = 0.02
 )
 
-tic()
-my_model <- fit_xgboost_model(params, train = xgb.train, val = xgb.train, nrounds = 600)
-toc()
-
-# accuracy = 1 - mlogloss
-accuracy <- 1 - tail(my_model$evaluation_log$val1_mlogloss, 1)
-accuracy
-
-xgb_pred <- make_predictions_xgboost(my_model, test)
-
-# Guardamos la submission
-fwrite(xgb_pred, file = "final_submission.csv")
+for (seed in c(1234)) {
+  tic()
+  my_model <- fit_xgboost_model(params, train = xgb.train, val = xgb.train, nrounds = 600, seed = seed)
+  toc()
+  
+  # accuracy = 1 - mlogloss
+  accuracy <- 1 - tail(my_model$evaluation_log$val1_mlogloss, 1)
+  accuracy
+  
+  xgb_pred <- make_predictions_xgboost(my_model, test)
+  
+  # Guardamos la submission
+  fwrite(xgb_pred, file = paste0("./seeds/",seed,".csv"))
+}
