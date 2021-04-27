@@ -139,7 +139,7 @@ knitr::kable(data.frame("Train accuracy" = c('-', 0.8149832, 0.8159764, 0.814663
 
 ggplot(impor_df[impor_df$vars %in% c("fe_dr_day", "fe_dr_wday", "fe_dr_qday", "fe_dr_week", "fe_dr_quarter", "fe_is_weekend"), ], 
        aes(fct_reorder(vars, Importance), Importance)) +
-  geom_col(group = 1, fill = "darkred") +
+  geom_col(group = 1, fill = "darkred", width = 0.6) +
   coord_flip() + 
   labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables (fe sobre date_recorded)') +
   theme(axis.text.y = element_text(face = "bold", colour = "black", size = 12))

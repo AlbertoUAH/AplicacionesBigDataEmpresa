@@ -228,7 +228,7 @@ ggplot(impor_df[impor_df$Importance < 500, ], aes(fct_reorder(vars, Importance),
   geom_col(group = 1, fill = "darkred") +
   coord_flip() + 
   labs(x = 'Variables', y = 'Importancia', title = 'Importancia Variables (Importance < 500)') +
-  theme(axis.text.y = element_text(face = "bold", colour = "black"))
+  theme(axis.text.y = element_text(face = "bold", colour = "black", size = 11))
 ggsave('./charts/19_lumping_fe_freq_abs_sobre_funder_ward_scheme_name_resto_categoricas_y_permit_public_meeting.png')
 
 # Por ultimo, almacenamos el dataset imputado en un csv (y asi evitar volver a imputar valores missing y reducir tiempo)
